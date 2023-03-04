@@ -1,14 +1,12 @@
 #include "aes.h"
-#include <pybind11/operators.h>
 #include <pybind11/pybind11.h>
-#include <pybind11/stl.h>
 #include <string>
 
 namespace py = pybind11;
 
 /**
  * @param msg A 128-bit (16-byte) plaintext block to encrypt
- * @param key
+ * @param key A 256-bit (32-byte) symmetric key
  * @return py::bytes The cooresponding 128-bit (16-byte) ciphertext
  * @throws std::length_error if inputs are invalid
  */
@@ -19,22 +17,17 @@ py::bytes py_encrypt_block(py::bytes msg, py::bytes key) {
         throw std::length_error("Plaintext has invalid length (should be 128 bits/16 bytes).");
     if (key_s.size() != 32)
         throw std::length_error("Key has invalid length (should be 256 bits/32 bytes).");
-    std::array<std::bitset<8>, 16> msg_a;
-    std::array<std::bitset<8>, 32> key_a;
-    for (size_t i = 0; i < 16; ++i)
-        msg_a[i] = msg_s[i];
-    for (size_t i = 0; i < 32; ++i)
-        key_a[i] = key_s[i];
-    std::bitset<128> ctxt = encrypt_block(concat_bitset(msg_a), concat_bitset(key_a));
-    std::string out;
-    for (size_t i = 0; i < 16; ++i)
-        out.push_back(sub_bitset<8>(ctxt, i).to_ulong());
-    return py::bytes(out);
+    std::array<BYTE, 16> msg_a;
+    std::array<BYTE, 32> key_a;
+    std::copy_n(msg_s.begin(), 16, msg_a.begin());
+    std::copy_n(key_s.begin(), 32, key_a.begin());
+    std::array<BYTE, 16> ctxt = encrypt_block(msg_a, key_a);
+    return py::bytes((const char*)ctxt.data(), 16);
 }
 
 /**
  * @param msg A 128-bit (16-byte) ciphertext block to decrypt
- * @param key
+ * @param key A 256-bit (32-byte) symmetric key
  * @return py::bytes The cooresponding 128-bit (16-byte) plaintext
  * @throws std::length_error if inputs are invalid
  */
@@ -45,17 +38,12 @@ py::bytes py_decrypt_block(py::bytes msg, py::bytes key) {
         throw std::length_error("Ciphertext has invalid length (should be 128 bits/16 bytes).");
     if (key_s.size() != 32)
         throw std::length_error("Key has invalid length (should be 256 bits/32 bytes).");
-    std::array<std::bitset<8>, 16> msg_a;
-    std::array<std::bitset<8>, 32> key_a;
-    for (size_t i = 0; i < 16; ++i)
-        msg_a[i] = msg_s[i];
-    for (size_t i = 0; i < 32; ++i)
-        key_a[i] = key_s[i];
-    std::bitset<128> ptxt = decrypt_block(concat_bitset(msg_a), concat_bitset(key_a));
-    std::string out;
-    for (size_t i = 0; i < 16; ++i)
-        out.push_back(sub_bitset<8>(ptxt, i).to_ulong());
-    return py::bytes(out);
+    std::array<BYTE, 16> msg_a;
+    std::array<BYTE, 32> key_a;
+    std::copy_n(msg_s.begin(), 16, msg_a.begin());
+    std::copy_n(key_s.begin(), 32, key_a.begin());
+    std::array<BYTE, 16> ptxt = decrypt_block(msg_a, key_a);
+    return py::bytes((const char*)ptxt.data(), 16);
 }
 
 PYBIND11_MODULE(_cpplib, m) {
