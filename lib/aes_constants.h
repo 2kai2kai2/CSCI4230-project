@@ -6,6 +6,7 @@
  * Contains constants for aes.h
  */
 #include <bitset>
+#include <stdexcept>
 
 namespace _AES_internals {
 /** For key scheduling; from https://en.wikipedia.org/wiki/AES_key_schedule#Round_constants*/
