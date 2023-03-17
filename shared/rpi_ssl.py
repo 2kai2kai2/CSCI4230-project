@@ -68,6 +68,8 @@ def build_handshake_record():
 class Session:
     """
     For use after handshake completion.
+
+    Each record should only be processed **once** by each party to maintain sequence number.
     """
 
     def __init__(self, encryptor: Callable[[bytes], bytes], decryptor: Callable[[bytes], bytes], block_size: int,
@@ -92,7 +94,9 @@ class Session:
         self.MAC = MAC
         self.mac_length = mac_length
 
-    def build_encrypted_record(self, content_type: ContentType, body: bytes, seq: int) -> bytes:
+        self.seq = 0
+
+    def build_encrypted_record(self, content_type: ContentType, body: bytes) -> bytes:
         """
         Builds a TLS/SSL record for the main part of communication, after handshake.
 
@@ -100,17 +104,13 @@ class Session:
         ----
         - `content_type` - the content type (Should be `Application` or `Alert`)
         - `body` - the data to be sent.
-        - `seq` - the sequence number of this record.
 
         Throws
         ----
-        - `ValueError` if `seq < 0`
-        - Potentially some other error if block size is incorrect.
+        - Potentially some error if block size is incorrect.
         """
-        if seq < 0:
-            raise ValueError("Sequence number cannot be negative.")
-
-        mac_value = self.MAC(seq.to_bytes(8, 'big') + body)
+        mac_value = self.MAC(self.seq.to_bytes(8, 'big') + body)
+        self.seq += 1
         plaintext = body + mac_value
         pad_len = self.block_size - \
             ((len(plaintext) + 1) % self.block_size) + 1
@@ -120,7 +120,7 @@ class Session:
         ciphertext = self.encryptor(plaintext)
         return build_record(content_type, ciphertext)
 
-    def build_app_record(self, body: bytes, seq: int) -> bytes:
+    def build_app_record(self, body: bytes) -> bytes:
         """
         Builds a TLS/SSL application record for the main part of communication, after handshake.
 
@@ -129,16 +129,14 @@ class Session:
         Parameters
         ----
         - `body` - the data to be sent.
-        - `seq` - the sequence number of this record.
 
         Throws
         ----
-        - `ValueError` if `seq < 0`
-        - Potentially some other error if block size is incorrect.
+        - Potentially some error if block size is incorrect.
         """
-        return self.build_encrypted_record(ContentType.Application, body, seq)
+        return self.build_encrypted_record(ContentType.Application, body)
 
-    def build_alert_record(self, level: AlertLevel, alert_type: AlertType, seq: int) -> bytes:
+    def build_alert_record(self, level: AlertLevel, alert_type: AlertType) -> bytes:
         """
         Builds a TLS/SSL alert record for after the handshake.
 
@@ -148,27 +146,23 @@ class Session:
         ----
         - `level` - the alert level (WARNING or FATAL)
         - `alert_type` - the alert type description.
-        - `seq` - the sequence number of this record.
 
         Throws
         ----
-        - `ValueError` if `seq < 0`
-        - Potentially some other error if block size is incorrect.
+        - Potentially some error if block size is incorrect.
         """
-        return self.build_encrypted_record(ContentType.Alert, bytes([level, alert_type]), seq)
+        return self.build_encrypted_record(ContentType.Alert, bytes([level, alert_type]))
 
-    def open_encrypted_record(self, content: bytes, seq: int) -> bytes:
+    def open_encrypted_record(self, content: bytes) -> bytes:
         """
         Decrypts and verifies the body of an encrypted TLS/SSL record (should be application or alert).
 
         Parameters
         ----
         - `content` - the encrypted body of a TLS/SSL record, **excluding** the header.
-        - `seq` - the sequence number of this record. Used for verification.
 
         Throws
         ----
-        - `ValueError` if `seq < 0`
         - `InvalidMAC` if verification fails.
         - `ValueError` if `len(content)` is not a multiple of block length.
         - Potentially some other error if block length is incorrect.
@@ -177,8 +171,6 @@ class Session:
         ----
         The message. Does **not** include MAC, padding, or anything else.
         """
-        if seq < 0:
-            raise ValueError("Sequence number cannot be negative.")
         if len(content) % self.block_size != 0:
             raise ValueError(
                 "TLS/SSL record content length must be a multiple of the block length.")
@@ -189,23 +181,24 @@ class Session:
         plaintext = plaintext[:-pad_len]
         message = plaintext[:-self.mac_length]
         mac_value = plaintext[-self.mac_length:]
-        if mac_value != self.MAC(seq.to_bytes(8, 'big') + message):
+        if mac_value != self.MAC(self.seq.to_bytes(8, 'big') + message):
+            self.seq += 1
             raise InvalidMAC(
-                f"MAC verification failed on message seq{seq}.")
+                f"MAC verification failed on message seq{self.seq}.")
+        self.seq += 1
+
         return message
 
-    def open_alert_record(self, content: bytes, seq: int) -> tuple[AlertLevel, AlertType]:
+    def open_alert_record(self, content: bytes) -> tuple[AlertLevel, AlertType]:
         """
         Decrypts and verifies the body of an encrypted TLS/SSL alert record.
 
         Parameters
         ----
         - `content` - the encrypted body of a TLS/SSL alert record, **excluding** the header.
-        - `seq` - the sequence number of this record. Used for verification.
 
         Throws
         ----
-        - `ValueError` if `seq < 0`
         - `InvalidMAC` if verification fails.
         - `ValueError` if `len(content)` is not a multiple of block length.
         - Potentially some other error if block length is incorrect.
@@ -214,7 +207,7 @@ class Session:
         ----
         A tuple with the contained alert level and alert type description.
         """
-        alert = self.open_encrypted_record(content, seq)
+        alert = self.open_encrypted_record(content)
         if len(alert) != 2:
             raise RuntimeError("Alert record has invalid length.")
         return (AlertLevel(alert[0]), AlertType(alert[1]))

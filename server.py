@@ -28,18 +28,16 @@ class Handler(ssv.StreamRequestHandler):
         # We get a message, check the card, and verify it is correct.
         if app_content[0] != MsgType.ACCOUNT_AUTH:  # Must be account auth message
             response = bytes([MsgType.ERROR, AppError.INVALID_STAGE])
-            self.wfile.write(self.session.build_app_record(response, self.seq))
-            self.seq += 1
+            self.wfile.write(self.session.build_app_record(response))
             return
-        
+
         try:
             self.account = get_account(Card.from_bytes(app_content[1:]))
         except:
             response = bytes([MsgType.ACCOUNT_AUTH, 0x00])
         else:
             response = bytes([MsgType.ACCOUNT_AUTH, 0x01])
-        self.wfile.write(self.session.build_app_record(response, self.seq))
-        self.seq += 1
+        self.wfile.write(self.session.build_app_record(response))
 
     def handle_routine(self, app_content: bytes):
         # Accept commands
@@ -49,7 +47,6 @@ class Handler(ssv.StreamRequestHandler):
         super().setup()
         # If this is not None, handshake is done
         self.session: Optional[ssl.Session] = None
-        self.seq = 0  # Uses of session key
         # If this is not None, account is authenticated
         self.account: Optional[Account] = None
 
@@ -70,14 +67,13 @@ class Handler(ssv.StreamRequestHandler):
             if content_type is ssl.ContentType.Application:
                 try:
                     app_content = self.session.open_encrypted_record(
-                        tls_content, self.seq)
+                        tls_content)
                 except ssl.InvalidMAC:
                     response = self.session.build_alert_record(
-                        ssl.AlertLevel.FATAL, ssl.AlertType.BadMAC, self.seq + 1)
+                        ssl.AlertLevel.FATAL, ssl.AlertType.BadMAC)
                     self.wfile.write(response)
                     self.close = True
                     return
-                self.seq += 1
 
                 self.handle_account_auth(app_content)
                 return
@@ -87,15 +83,13 @@ class Handler(ssv.StreamRequestHandler):
         # Final stage: ongoing user commands
         if content_type is ssl.ContentType.Application:
             try:
-                app_content = self.session.open_encrypted_record(
-                    tls_content, self.seq)
+                app_content = self.session.open_encrypted_record(tls_content)
             except ssl.InvalidMAC:
                 response = self.session.build_alert_record(
-                    ssl.AlertLevel.FATAL, ssl.AlertType.BadMAC, self.seq + 1)
+                    ssl.AlertLevel.FATAL, ssl.AlertType.BadMAC)
                 self.wfile.write(response)
                 self.close = True
                 return
-            self.seq += 1
 
             self.handle_routine(app_content)
             return
@@ -108,7 +102,7 @@ class Handler(ssv.StreamRequestHandler):
                 self.message_handler()
             except:
                 self.wfile.write(self.session.build_alert_record(
-                    ssl.AlertLevel.FATAL, ssl.AlertType.InternalError, self.seq))
+                    ssl.AlertLevel.FATAL, ssl.AlertType.InternalError))
                 return
 
     def finish(self):
