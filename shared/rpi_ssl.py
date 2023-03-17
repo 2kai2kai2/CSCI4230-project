@@ -48,6 +48,7 @@ def build_app_record(body: bytes, seq: int, MAC: Callable[[bytes], bytes],
     Throws
     ----
        - `ValueError` if `seq < 0`  or `block_size <= 0`
+       - Potentially some error if block size is incorrect.
     """
     if seq < 0:
         raise ValueError("Sequence number cannot be negative.")
@@ -56,8 +57,48 @@ def build_app_record(body: bytes, seq: int, MAC: Callable[[bytes], bytes],
 
     mac_value = MAC(seq.to_bytes(8, 'big') + body)
     plaintext = body + mac_value
-    pad_len = block_size - (len(plaintext) % block_size)
+    pad_len = block_size - ((len(plaintext) + 1) % block_size) + 1
     plaintext += b'a' * (pad_len - 1) + pad_len.to_bytes(1, 'big')
+    # Note that there will always be at least one byte of 'pad' since we will always have the pad length byte.
 
     ciphertext = encryptor(plaintext)
-    return build_record(ContentType.Application, ciphertext) 
+    return build_record(ContentType.Application, ciphertext)
+
+
+def open_app_record(content: bytes, seq: int, MAC: Callable[[bytes], bytes], mac_length: int,
+                    decryptor: Callable[[bytes], bytes]) -> bytes:
+    """
+    Decrypts and verifies the body of a TLS/SSL application record.
+
+    Parameters
+    ----
+       - `content` - the encrypted body of a TLS/SSL application record, **excluding** the header.
+       - `seq` - the sequence number of this record. Used for verification.
+       - `MAC` - a MAC function to be run on the body. Lambdas may be used to provide parameters other than the data, for example `lambda x: HMAC(x, <KEY>)`
+       - `mac_length` - the length of the output of the MAC function.
+       - `decryptor` - an decryption function to be run on the body, MAC, and padding. Lambdas may be used to provide parameters other than the ciphertext, for example `lambda x: decrypt(x, <KEY>, 'CBC')`
+
+    Throws
+    ----
+       - `ValueError` if `seq < 0` or `mac_length <= 0`
+       - `RuntimeError` if verification fails.
+       - Potentially some error if `len(content)` is not a multiple of `decryptor`'s block length.
+
+    Returns
+    ----
+    The application message. Does **not** include MAC, padding, or anything else.
+    """
+    if seq < 0:
+        raise ValueError("Sequence number cannot be negative.")
+    elif mac_length <= 0:
+        raise ValueError("MAC size must be a positive integer.")
+
+    plaintext = decryptor(content)
+    pad_len = int.from_bytes(plaintext[-1], 'big')
+    # Note that there will always be at least one byte of 'pad' since we will always have the pad length byte.
+    plaintext = plaintext[:-pad_len]
+    message = plaintext[:-mac_length]
+    mac_value = plaintext[-mac_length:]
+    if mac_value != MAC(seq.to_bytes(8, 'big') + message):
+        raise RuntimeError(f"MAC verification failed on message seq{seq}.")
+    return message
