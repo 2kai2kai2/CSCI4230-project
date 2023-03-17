@@ -1,6 +1,7 @@
 import socket
 import shared.rpi_ssl as ssl
 from shared.card import *
+from shared.protocol import *
 
 
 conn = socket.create_connection(("localhost", 125))
@@ -83,7 +84,27 @@ def input_card() -> Card:
 account_auth = False
 while not account_auth:
     card = input_card()
-    # TODO: send the card for verification and set account_auth if so
+    request = bytes([MsgType.ACCOUNT_AUTH]) + card.to_bytes()
+    rtype, tls_content = fetch_record()
+    if rtype == ssl.ContentType.Alert:
+        alevel, atype = session.open_alert_record(tls_content)
+        if alevel == ssl.AlertLevel.FATAL:
+            print("FATAL ERROR: " + atype.name)
+            quit()
+        else:
+            pass  # handle any warnings that need to be handled
+    elif rtype == ssl.ContentType.Application:
+        app_content = session.open_encrypted_record(tls_content)
+        if app_content[0] != MsgType.ACCOUNT_AUTH:
+            # Something went wrong. Let's just move on.
+            print(
+                f"WARNING (app): Recieved app message type {MsgType(app_content[0])} instead of ACCOUNT_AUTH")
+            continue
+        if app_content[1] == 0x01:
+            account_auth = True
+    else:
+        pass  # That wasn't supposed to happen.
+
 
 # ==== Commands Stage ====
 while True:
