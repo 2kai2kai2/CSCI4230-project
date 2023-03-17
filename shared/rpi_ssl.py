@@ -113,7 +113,7 @@ class Session:
                 "TLS/SSL application record content length must be a multiple of the block length.")
 
         plaintext = self.decryptor(content)
-        pad_len = int.from_bytes(plaintext[-1], 'big')
+        pad_len: int = plaintext[-1]
         # Note that there will always be at least one byte of 'pad' since we will always have the pad length byte.
         plaintext = plaintext[:-pad_len]
         message = plaintext[:-self.mac_length]
