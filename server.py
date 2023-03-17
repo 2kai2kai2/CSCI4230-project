@@ -18,10 +18,22 @@ class Handler(ssv.StreamRequestHandler):
         tls_content = self.rfile.read(content_length)
         return (content_type, tls_content)
 
+    def handle_handshake(self, tls_content: bytes):
+        # SSL handshake
+        raise NotImplementedError("oopsie!")
+
+    def handle_account_auth(self, tls_content: bytes):
+        # User sign-in stuff
+        raise NotImplementedError("oopsie!")
+
+    def handle_routine(self, tls_content: bytes):
+        # Accept commands
+        raise NotImplementedError("oopsie!")
+
     def setup(self):
         super().setup()
         # If this is not None, handshake is done
-        self.session_key: Optional[bytes] = None
+        self.session_key: Optional[ssl.Session] = None
         self.seq = 0  # Uses of session key
         # If this is not None, account is authenticated
         self.account: Optional[Account] = None
@@ -30,15 +42,26 @@ class Handler(ssv.StreamRequestHandler):
         content_type, tls_content = self.fetch_record()
 
         if self.session_key is None:
-            assert content_type is ssl.ContentType.Handshake
-            # SLL handshake
-            return
+            # First stage: Handshake
+            if content_type is ssl.ContentType.Handshake:
+                self.handle_handshake(tls_content)
+                return
+            raise NotImplementedError(
+                "We don't know what to do with non-handshake messages at this stage.")
         elif self.account is None:
-            assert content_type is ssl.ContentType.Application
-            # User sign-in stuff
+            # Second stage: user authentication
+            if content_type is ssl.ContentType.Application:
+                self.handle_account_auth(tls_content)
+                return
+            raise NotImplementedError(
+                "We don't know what to do with non-application messages at this stage.")
+
+        # Final stage: ongoing user commands
+        if content_type is ssl.ContentType.Application:
+            self.handle_routine(tls_content)
             return
-        assert content_type is ssl.ContentType.Application
-        # Otherwise, accept commands
+        raise NotImplementedError(
+            "We don't know what to do with non-application messages at this stage.")
 
     def finish(self):
         super().finish()
