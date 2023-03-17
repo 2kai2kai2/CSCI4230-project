@@ -16,13 +16,27 @@ def bad_hash(data: bytes) -> bytes:
 basic_session = ssl.Session(bad_encrypt, bad_encrypt, 16, bad_hash, 8)
 
 print("Testing with basic but very bad crypto primitives:")
+print("-> Basic encrypted records:")
 for i in range(1000):
     data = random.randbytes(random.randrange(0, 500))
-    record = basic_session.build_app_record(data, i)
+    record = basic_session.build_encrypted_record(
+        ssl.ContentType.Application, data, i)
     assert record[0] == ssl.ContentType.Application
     assert record[1] == 0x03 and record[2] == 0x03
     assert int.from_bytes(record[3:5], 'big') % basic_session.block_size == 0
-    retrieved_data = basic_session.open_app_record(record[5:], i)
+    retrieved_data = basic_session.open_encrypted_record(record[5:], i)
     assert data == retrieved_data
     print("+", end="")
-print()
+print("\n-> Encrypted alert records:")
+for i in range(1000):
+    level = random.choice(list(ssl.AlertLevel))
+    atype = random.choice(list(ssl.AlertType))
+    record = basic_session.build_alert_record(level, atype, i)
+    assert record[0] == ssl.ContentType.Alert
+    assert record[1] == 0x03 and record[2] == 0x03
+    assert int.from_bytes(record[3:5], 'big') == basic_session.block_size
+    retrieved_level, retrieved_type = basic_session.open_alert_record(
+        record[5:], i)
+    assert retrieved_level == level
+    assert retrieved_type == atype
+    print("+", end="")
