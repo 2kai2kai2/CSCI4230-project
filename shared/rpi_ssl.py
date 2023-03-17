@@ -37,6 +37,14 @@ class AlertType(IntEnum):
     UserCanceled = 90
 
 
+class SSLError(Exception):
+    pass
+
+
+class InvalidMAC(SSLError):
+    pass
+
+
 def build_record(content_type: ContentType, body: bytes) -> bytes:
     """
     Builds a TLS/SSL record. Does not alter the body (see specialized functions), instead 
@@ -44,7 +52,7 @@ def build_record(content_type: ContentType, body: bytes) -> bytes:
 
     https://en.wikipedia.org/wiki/Transport_Layer_Security#TLS_record
     """
-    return bytes([content_type.value, 0x03, 0x03]) + len(body).to_bytes(2, 'big') + body
+    return bytes([content_type, 0x03, 0x03]) + len(body).to_bytes(2, 'big') + body
 
 
 def build_handshake_record():
@@ -147,7 +155,7 @@ class Session:
         - `ValueError` if `seq < 0`
         - Potentially some other error if block size is incorrect.
         """
-        return self.build_encrypted_record(ContentType.Alert, bytes([level.value, alert_type.value]), seq)
+        return self.build_encrypted_record(ContentType.Alert, bytes([level, alert_type]), seq)
 
     def open_encrypted_record(self, content: bytes, seq: int) -> bytes:
         """
@@ -161,7 +169,7 @@ class Session:
         Throws
         ----
         - `ValueError` if `seq < 0`
-        - `RuntimeError` if verification fails.
+        - `InvalidMAC` if verification fails.
         - `ValueError` if `len(content)` is not a multiple of block length.
         - Potentially some other error if block length is incorrect.
 
@@ -182,7 +190,8 @@ class Session:
         message = plaintext[:-self.mac_length]
         mac_value = plaintext[-self.mac_length:]
         if mac_value != self.MAC(seq.to_bytes(8, 'big') + message):
-            raise RuntimeError(f"MAC verification failed on message seq{seq}.")
+            raise InvalidMAC(
+                f"MAC verification failed on message seq{seq}.")
         return message
 
     def open_alert_record(self, content: bytes, seq: int) -> tuple[AlertLevel, AlertType]:
@@ -197,7 +206,7 @@ class Session:
         Throws
         ----
         - `ValueError` if `seq < 0`
-        - `RuntimeError` if verification fails.
+        - `InvalidMAC` if verification fails.
         - `ValueError` if `len(content)` is not a multiple of block length.
         - Potentially some other error if block length is incorrect.
 

@@ -2,6 +2,8 @@ import socketserver as ssv
 from typing import Optional
 from database import Account, get_account
 import shared.rpi_ssl as ssl
+from shared.protocol import MsgType, AppError
+from shared.card import Card
 
 
 class Handler(ssv.StreamRequestHandler):
@@ -22,26 +24,41 @@ class Handler(ssv.StreamRequestHandler):
         # SSL handshake
         raise NotImplementedError("oopsie!")
 
-    def handle_account_auth(self, tls_content: bytes):
-        # User sign-in stuff
-        raise NotImplementedError("oopsie!")
+    def handle_account_auth(self, app_content: bytes):
+        # We get a message, check the card, and verify it is correct.
+        if app_content[0] != MsgType.ACCOUNT_AUTH:  # Must be account auth message
+            response = bytes([MsgType.ERROR, AppError.INVALID_STAGE])
+            self.wfile.write(self.session.build_app_record(response, self.seq))
+            self.seq += 1
+            return
+        
+        try:
+            self.account = get_account(Card.from_bytes(app_content[1:]))
+        except:
+            response = bytes([MsgType.ACCOUNT_AUTH, 0x00])
+        else:
+            response = bytes([MsgType.ACCOUNT_AUTH, 0x01])
+        self.wfile.write(self.session.build_app_record(response, self.seq))
+        self.seq += 1
 
-    def handle_routine(self, tls_content: bytes):
+    def handle_routine(self, app_content: bytes):
         # Accept commands
         raise NotImplementedError("oopsie!")
 
     def setup(self):
         super().setup()
         # If this is not None, handshake is done
-        self.session_key: Optional[ssl.Session] = None
+        self.session: Optional[ssl.Session] = None
         self.seq = 0  # Uses of session key
         # If this is not None, account is authenticated
         self.account: Optional[Account] = None
 
-    def handle(self):
+        self.close = False
+
+    def message_handler(self):
         content_type, tls_content = self.fetch_record()
 
-        if self.session_key is None:
+        if self.session is None:
             # First stage: Handshake
             if content_type is ssl.ContentType.Handshake:
                 self.handle_handshake(tls_content)
@@ -51,17 +68,48 @@ class Handler(ssv.StreamRequestHandler):
         elif self.account is None:
             # Second stage: user authentication
             if content_type is ssl.ContentType.Application:
-                self.handle_account_auth(tls_content)
+                try:
+                    app_content = self.session.open_encrypted_record(
+                        tls_content, self.seq)
+                except ssl.InvalidMAC:
+                    response = self.session.build_alert_record(
+                        ssl.AlertLevel.FATAL, ssl.AlertType.BadMAC, self.seq + 1)
+                    self.wfile.write(response)
+                    self.close = True
+                    return
+                self.seq += 1
+
+                self.handle_account_auth(app_content)
                 return
             raise NotImplementedError(
                 "We don't know what to do with non-application messages at this stage.")
 
         # Final stage: ongoing user commands
         if content_type is ssl.ContentType.Application:
-            self.handle_routine(tls_content)
+            try:
+                app_content = self.session.open_encrypted_record(
+                    tls_content, self.seq)
+            except ssl.InvalidMAC:
+                response = self.session.build_alert_record(
+                    ssl.AlertLevel.FATAL, ssl.AlertType.BadMAC, self.seq + 1)
+                self.wfile.write(response)
+                self.close = True
+                return
+            self.seq += 1
+
+            self.handle_routine(app_content)
             return
         raise NotImplementedError(
             "We don't know what to do with non-application messages at this stage.")
+
+    def handle(self):
+        while not self.close:
+            try:
+                self.message_handler()
+            except:
+                self.wfile.write(self.session.build_alert_record(
+                    ssl.AlertLevel.FATAL, ssl.AlertType.InternalError, self.seq))
+                return
 
     def finish(self):
         super().finish()
