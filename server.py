@@ -13,7 +13,7 @@ class Handler(ssv.StreamRequestHandler):
 
     def fetch_record(self) -> tuple[ssl.ContentType, bytes]:
         tls_header = self.rfile.read(5)
-        content_type = ssl.ContentType.from_bytes(tls_header[0], 'big')
+        content_type = ssl.ContentType(tls_header[0])
         assert tls_header[1:3] == b'\x03\x03'
         content_length = int.from_bytes(tls_header[3:5], 'big')
 
@@ -30,13 +30,15 @@ class Handler(ssv.StreamRequestHandler):
             response = bytes([MsgType.ERROR, AppError.INVALID_STAGE])
             self.wfile.write(self.session.build_app_record(response))
             return
-
+        # Check the card
         try:
-            self.account = get_account(Card.from_bytes(app_content[1:]))
+            card = Card.from_bytes(app_content[1:])
+            self.account = get_account(card)
         except:
             response = bytes([MsgType.ACCOUNT_AUTH, 0x00])
         else:
             response = bytes([MsgType.ACCOUNT_AUTH, 0x01])
+        # Send response
         self.wfile.write(self.session.build_app_record(response))
 
     def handle_routine(self, app_content: bytes):

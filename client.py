@@ -6,13 +6,13 @@ from shared.protocol import *
 
 conn = socket.create_connection(("localhost", 125))
 conn.setblocking(True)
-rfile = conn.makefile('rb')
-wfile = conn.makefile('wb')
+rfile = conn.makefile('rb', buffering=0)
+wfile = conn.makefile('wb', buffering=0)
 
 
 def fetch_record() -> tuple[ssl.ContentType, bytes]:
     tls_header = rfile.read(5)
-    content_type = ssl.ContentType.from_bytes(tls_header[0], 'big')
+    content_type = ssl.ContentType(tls_header[0])
     assert tls_header[1:3] == b'\x03\x03'
     content_length = int.from_bytes(tls_header[3:5], 'big')
 
@@ -85,6 +85,8 @@ account_auth = False
 while not account_auth:
     card = input_card()
     request = bytes([MsgType.ACCOUNT_AUTH]) + card.to_bytes()
+    wfile.write(session.build_app_record(request))
+
     rtype, tls_content = fetch_record()
     if rtype == ssl.ContentType.Alert:
         alevel, atype = session.open_alert_record(tls_content)
@@ -102,6 +104,9 @@ while not account_auth:
             continue
         if app_content[1] == 0x01:
             account_auth = True
+            print("++ Account Authorized ++\n")
+        else:
+            print("!! Invalid details !!\n")
     else:
         pass  # That wasn't supposed to happen.
 
