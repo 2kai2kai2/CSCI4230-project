@@ -24,26 +24,56 @@ class Handler(ssv.StreamRequestHandler):
         # SSL handshake
         raise NotImplementedError("oopsie!")
 
-    def handle_account_auth(self, app_content: bytes):
-        # We get a message, check the card, and verify it is correct.
+    def handle_account_auth(self, app_content: bytes) -> bytes:
+        """
+        Purely application-level
+
+        Returns
+        ----
+        `bytes` object with response message. Application message type should be the same as `app_content` or be `ERROR`
+        """
         if app_content[0] != MsgType.ACCOUNT_AUTH:  # Must be account auth message
-            response = bytes([MsgType.ERROR, AppError.INVALID_STAGE])
-            self.wfile.write(self.session.build_app_record(response))
-            return
+            return bytes([MsgType.ERROR, AppError.INVALID_STAGE])
         # Check the card
         try:
             card = Card.from_bytes(app_content[1:])
             self.account = get_account(card)
         except:
-            response = bytes([MsgType.ACCOUNT_AUTH, 0x00])
+            return bytes([MsgType.ACCOUNT_AUTH, 0x00])
         else:
-            response = bytes([MsgType.ACCOUNT_AUTH, 0x01])
-        # Send response
-        self.wfile.write(self.session.build_app_record(response))
+            return bytes([MsgType.ACCOUNT_AUTH, 0x01])
 
-    def handle_routine(self, app_content: bytes):
+    def handle_routine(self, app_content: bytes) -> bytes:
+        """
+        Purely application-level
+
+        Returns
+        ----
+        `bytes` object with response message. Application message type should be the same as `app_content` or be `ERROR`
+        """
         # Accept commands
-        raise NotImplementedError("oopsie!")
+        if app_content[0] is MsgType.BALANCE:
+            if len(app_content) != 1:
+                return bytes([MsgType.ERROR, AppError.BAD_MESSAGE])
+            return bytes([MsgType.BALANCE]) + self.account.balance.to_bytes(8, 'big')
+        elif app_content[0] is MsgType.DEPOSIT:
+            if len(app_content) != 9:
+                return bytes([MsgType.ERROR, AppError.BAD_MESSAGE])
+            amount = int.from_bytes(app_content[1:], 'big')
+            self.account.deposit(amount)
+            return bytes([MsgType.DEPOSIT, 0x01])
+        elif app_content[0] is MsgType.WITHDRAW:
+            if len(app_content) != 9:
+                return bytes([MsgType.ERROR, AppError.BAD_MESSAGE])
+            amount = int.from_bytes(app_content[1:], 'big')
+            try:
+                self.account.withdraw(amount)
+            except:
+                return bytes([MsgType.WITHDRAW, 0x00])
+            else:
+                return bytes([MsgType.WITHDRAW, 0x01])
+        else:
+            return bytes([MsgType.ERROR, AppError.INVALID_STAGE])
 
     def setup(self):
         super().setup()
@@ -55,6 +85,17 @@ class Handler(ssv.StreamRequestHandler):
         self.close = False
 
     def message_handler(self):
+        """
+        Waits for a new SSL/TLS record, then calls the appropriate handler.
+        - During handshake: TODO
+        - During user authentication: uses application-level `handle_account_auth`
+        - Otherwise: uses application-level `handle_routine`
+
+        Throws
+        ----
+           - `SSLError` - will include error details; should be caught and have alert message sent.
+           - `NotImplementedError` where not implemented.
+        """
         content_type, tls_content = self.fetch_record()
 
         if self.session is None:
@@ -67,33 +108,18 @@ class Handler(ssv.StreamRequestHandler):
         elif self.account is None:
             # Second stage: user authentication
             if content_type is ssl.ContentType.Application:
-                try:
-                    app_content = self.session.open_encrypted_record(
-                        tls_content)
-                except ssl.InvalidMAC:
-                    response = self.session.build_alert_record(
-                        ssl.AlertLevel.FATAL, ssl.AlertType.BadMAC)
-                    self.wfile.write(response)
-                    self.close = True
-                    return
-
-                self.handle_account_auth(app_content)
+                app_content = self.session.open_encrypted_record(tls_content)
+                response = self.handle_account_auth(app_content)
+                self.wfile.write(self.session.build_app_record(response))
                 return
             raise NotImplementedError(
                 "We don't know what to do with non-application messages at this stage.")
 
         # Final stage: ongoing user commands
         if content_type is ssl.ContentType.Application:
-            try:
-                app_content = self.session.open_encrypted_record(tls_content)
-            except ssl.InvalidMAC:
-                response = self.session.build_alert_record(
-                    ssl.AlertLevel.FATAL, ssl.AlertType.BadMAC)
-                self.wfile.write(response)
-                self.close = True
-                return
-
-            self.handle_routine(app_content)
+            app_content = self.session.open_encrypted_record(tls_content)
+            response = self.handle_routine(app_content)
+            self.wfile.write(self.session.build_app_record(response))
             return
         raise NotImplementedError(
             "We don't know what to do with non-application messages at this stage.")
@@ -102,6 +128,11 @@ class Handler(ssv.StreamRequestHandler):
         while not self.close:
             try:
                 self.message_handler()
+            except ssl.SSLError as e:
+                self.wfile.write(
+                    self.session.build_alert_record(e.level, e.atype))
+                if e.level is ssl.AlertLevel.FATAL:
+                    return
             except:
                 self.wfile.write(self.session.build_alert_record(
                     ssl.AlertLevel.FATAL, ssl.AlertType.InternalError))

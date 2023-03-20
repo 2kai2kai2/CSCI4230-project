@@ -103,4 +103,4 @@ def get_account(card: Card) -> Account:
     elif card != account.card:
         raise PermissionError(
             "Provided card details do not match the associated account.")
-    return card
+    return account

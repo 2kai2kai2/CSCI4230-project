@@ -38,11 +38,10 @@ class AlertType(IntEnum):
 
 
 class SSLError(Exception):
-    pass
-
-
-class InvalidMAC(SSLError):
-    pass
+    def __init__(self, level: AlertLevel, atype: AlertType, msg=None):
+        self.level = level
+        self.atype = atype
+        super().__init__(f"{level} SSL alert: {atype}", msg)
 
 
 def build_record(content_type: ContentType, body: bytes) -> bytes:
@@ -163,7 +162,7 @@ class Session:
 
         Throws
         ----
-        - `InvalidMAC` if verification fails.
+        - `SSLError: (FATAL, BadMAC)` if verification fails.
         - `ValueError` if `len(content)` is not a multiple of block length.
         - Potentially some other error if block length is incorrect.
 
@@ -183,8 +182,8 @@ class Session:
         mac_value = plaintext[-self.mac_length:]
         if mac_value != self.MAC(self.seq.to_bytes(8, 'big') + message):
             self.seq += 1
-            raise InvalidMAC(
-                f"MAC verification failed on message seq{self.seq}.")
+            raise SSLError(AlertLevel.FATAL,
+                           AlertType.BadMAC, f"seq{self.seq}")
         self.seq += 1
 
         return message
@@ -199,7 +198,7 @@ class Session:
 
         Throws
         ----
-        - `InvalidMAC` if verification fails.
+        - `SSLError: (FATAL, BadMAC)` if verification fails.
         - `ValueError` if `len(content)` is not a multiple of block length.
         - Potentially some other error if block length is incorrect.
 
