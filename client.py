@@ -31,6 +31,7 @@ session: ssl.Session = ...  # placeholder
 
 
 def input_card_legacy() -> Card:
+    # Still works if your computer doesn't support getkey or ANSI escape codes
     print("Enter card details:")
     card_num = ""
     while True:
@@ -183,5 +184,45 @@ while not account_auth:
 
 
 # ==== Commands Stage ====
+
+def select_mode_legacy() -> MsgType:
+    # Still works if your computer doesn't support getkey or ANSI escape codes
+    while True:
+        mode = input(
+            "Enter mode (BALANCE, DEPOSIT, WITHDRAW): ").strip().upper()
+        if mode not in ["BALANCE", "DEPOSIT", "WITHDRAW"]:
+            print("Invalid mode. Try again.")
+            continue
+        return MsgType[mode]
+
+
+def select_mode() -> MsgType:
+    option = MsgType.BALANCE
+    while True:
+        if option is MsgType.BALANCE:
+            print(
+                "\r\x1b[7mBALANCE\x1b[27m   DEPOSIT   WITHDRAW\x1b[?25l", end="")
+        elif option is MsgType.DEPOSIT:
+            print(
+                "\rBALANCE   \x1b[7mDEPOSIT\x1b[27m   WITHDRAW\x1b[?25l", end="")
+        elif option is MsgType.WITHDRAW:
+            print(
+                "\rBALANCE   DEPOSIT   \x1b[7mWITHDRAW\x1b[27m\x1b[?25l", end="")
+        k = getkey()
+        if k == keys.ENTER:
+            print("\x1b[?25h")
+            return option
+        elif k == keys.LEFT:
+            if option is MsgType.DEPOSIT:
+                option = MsgType.BALANCE
+            elif option is MsgType.WITHDRAW:
+                option = MsgType.DEPOSIT
+        elif k == keys.RIGHT:
+            if option is MsgType.BALANCE:
+                option = MsgType.DEPOSIT
+            elif option is MsgType.DEPOSIT:
+                option = MsgType.WITHDRAW
+
+
 while True:
     pass
