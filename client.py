@@ -2,6 +2,7 @@ import socket
 import shared.rpi_ssl as ssl
 from shared.card import *
 from shared.protocol import *
+from getkey import getkey, keys
 
 
 conn = socket.create_connection(("localhost", 125))
@@ -29,7 +30,7 @@ session: ssl.Session = ...  # placeholder
 # ==== Account Auth Stage ====
 
 
-def input_card() -> Card:
+def input_card_legacy() -> Card:
     print("Enter card details:")
     card_num = ""
     while True:
@@ -77,6 +78,76 @@ def input_card() -> Card:
             continue
         pin = int(tmp)
         break
+
+    return Card(card_num, cvc, month, year, pin)
+
+
+def input_card() -> Card:
+    print("Enter card details:")
+    card_num = ""
+    while True:
+        print("Card number: ", end="")
+        while len(card_num) != 16:
+            k = getkey()
+            if str(k).isdigit():
+                print(str(k), end="")
+                card_num += str(k)
+
+        if valid_card_num(card_num):
+            print("\x1b[0K")
+            break
+        else:
+            card_num = ""
+            print("\x1b[1K (Invalid card number) \r", end="")
+    cvc = ""
+    print("CVC: ", end="")
+    while len(cvc) != 3:
+        k = getkey()
+        if str(k).isdigit():
+            print(str(k), end="")
+            cvc += str(k)
+    cvc = int(cvc)
+    print()
+
+    month = ""
+    year = ""
+    print("Expiration Date:   /    \x1b[7D", end="")
+    while month == "":
+        # First character of month must be 0 or 1
+        k = getkey()
+        if k == "0" or k == "1":
+            month += str(k)
+            print(k, end="")
+    while len(month) != 2:
+        # Second character of month must form a number in [1,12]
+        k = getkey()
+        if (month == "0" and k != "0") or (month == "1" and k in ["0", "1", "2"]):
+            month += str(k)
+            print(f"{k}/", end="")
+
+    while len(year) == 0:
+        # First character of year must be 2
+        if getkey() == "2":
+            year = "2"
+            print("2", end="")
+    while len(year) < 4:
+        # Put in the other numbers
+        k = getkey()
+        if str(k).isdigit():
+            print(str(k), end="")
+            year += str(k)
+    month = int(month)
+    year = int(year)
+
+    pin = ""
+    print("\nPIN: ", end="")
+    while len(pin) != 4:
+        k = getkey()
+        if str(k).isdigit():
+            print("*", end="")
+            pin += str(k)
+    pin = int(pin)
+    print()
 
     return Card(card_num, cvc, month, year, pin)
 
