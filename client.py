@@ -36,7 +36,7 @@ def input_card_legacy() -> Card:
     card_num = ""
     while True:
         tmp = input("Card number: ").strip()
-        if not tmp.isdigit() or len(tmp) != 16:
+        if not tmp.isdecimal() or len(tmp) != 16:
             print("ERROR: Invalid card number format (should be 16 digits).")
             continue
         if not valid_card_num(tmp):
@@ -48,7 +48,7 @@ def input_card_legacy() -> Card:
     cvc = -1
     while True:
         tmp = input("CVC: ").strip()
-        if not tmp.isdigit() or len(tmp) != 3:
+        if not tmp.isdecimal() or len(tmp) != 3:
             print("ERROR: Invalid CVC format (should be 3 digits).")
             continue
         cvc = int(tmp)
@@ -58,7 +58,7 @@ def input_card_legacy() -> Card:
     year = -1
     while True:
         tmp = input("Expiration date (MM/YYYY): ").strip()
-        if len(tmp) != 7 or not tmp[:2].isdigit() or tmp[2] != "/" or not tmp[3:].isdigit():
+        if len(tmp) != 7 or not tmp[:2].isdecimal() or tmp[2] != "/" or not tmp[3:].isdecimal():
             print("ERROR: Invalid expiration date format (should be MM/YYYY).")
             continue
         month = int(tmp[:2])
@@ -74,7 +74,7 @@ def input_card_legacy() -> Card:
     pin = -1
     while True:
         tmp = input("PIN: ").strip()
-        if len(tmp) != 4 or not tmp.isdigit():
+        if len(tmp) != 4 or not tmp.isdecimal():
             print("ERROR: Invalid PIN format (should be 4 digits).")
             continue
         pin = int(tmp)
@@ -90,7 +90,7 @@ def input_card() -> Card:
         print("Card number: ", end="")
         while len(card_num) != 16:
             k = getkey()
-            if str(k).isdigit():
+            if str(k).isdecimal():
                 print(str(k), end="")
                 card_num += str(k)
 
@@ -104,7 +104,7 @@ def input_card() -> Card:
     print("CVC: ", end="")
     while len(cvc) != 3:
         k = getkey()
-        if str(k).isdigit():
+        if str(k).isdecimal():
             print(str(k), end="")
             cvc += str(k)
     cvc = int(cvc)
@@ -134,7 +134,7 @@ def input_card() -> Card:
     while len(year) < 4:
         # Put in the other numbers
         k = getkey()
-        if str(k).isdigit():
+        if str(k).isdecimal():
             print(str(k), end="")
             year += str(k)
     month = int(month)
@@ -144,7 +144,7 @@ def input_card() -> Card:
     print("\nPIN: ", end="")
     while len(pin) != 4:
         k = getkey()
-        if str(k).isdigit():
+        if str(k).isdecimal():
             print("*", end="")
             pin += str(k)
     pin = int(pin)
@@ -224,5 +224,58 @@ def select_mode() -> MsgType:
                 option = MsgType.WITHDRAW
 
 
+def request_balance() -> int:
+    msg = session.build_app_record(bytes([MsgType.BALANCE]))
+    wfile.write(msg)
+    rtype, response_body = fetch_record()
+    assert rtype == ssl.ContentType.Application
+    response = session.open_encrypted_record(response_body)
+    assert len(response) == 9 and response[0] == MsgType.BALANCE
+    return int.from_bytes(response[1:], 'big')
+
+
+def request_deposit(amount: int) -> bool:
+    msg = session.build_app_record(
+        bytes([MsgType.DEPOSIT]) + amount.to_bytes(8, 'big'))
+    wfile.write(msg)
+    rtype, response_body = fetch_record()
+    assert rtype == ssl.ContentType.Application
+    response = session.open_encrypted_record(response_body)
+    assert len(response) == 2 and response[0] == MsgType.DEPOSIT
+    return response[1] == 0x01
+
+
+def request_withdraw(amount: int) -> bool:
+    msg = session.build_app_record(
+        bytes([MsgType.WITHDRAW]) + amount.to_bytes(8, 'big'))
+    wfile.write(msg)
+    rtype, response_body = fetch_record()
+    assert rtype == ssl.ContentType.Application
+    response = session.open_encrypted_record(response_body)
+    assert len(response) == 2 and response[0] == MsgType.WITHDRAW
+    return response[1] == 0x01
+
+
 while True:
-    pass
+    print("Select command:")
+    mode = select_mode()
+    if mode == MsgType.BALANCE:
+        print("Fetching balance...")
+        amount = request_balance()
+        print(f"Account Balance: ${amount/100:.2f}")
+    elif mode == MsgType.DEPOSIT:
+        amount = input("Enter amount to deposit: $")
+        if not amount.replace(".", "", 1).isdecimal():
+            print("Invalid number format.")
+            continue
+        success = request_deposit(int(float(amount) * 100))
+        print("Deposit " + ("successful." if success else "unsuccessful."))
+    elif mode == MsgType.WITHDRAW:
+        amount = input("Enter amount to withdraw: $")
+        if not amount.replace(".", "", 1).isdecimal():
+            print("Invalid number format.")
+            continue
+        success = request_withdraw(int(float(amount) * 100))
+        print("Withdrawal " + ("successful." if success else "unsuccessful."))
+    else:
+        raise NotImplementedError("This shouldn't be able to happen.")

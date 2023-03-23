@@ -52,17 +52,17 @@ class Handler(ssv.StreamRequestHandler):
         `bytes` object with response message. Application message type should be the same as `app_content` or be `ERROR`
         """
         # Accept commands
-        if app_content[0] is MsgType.BALANCE:
+        if app_content[0] == MsgType.BALANCE:
             if len(app_content) != 1:
                 return bytes([MsgType.ERROR, AppError.BAD_MESSAGE])
             return bytes([MsgType.BALANCE]) + self.account.balance.to_bytes(8, 'big')
-        elif app_content[0] is MsgType.DEPOSIT:
+        elif app_content[0] == MsgType.DEPOSIT:
             if len(app_content) != 9:
                 return bytes([MsgType.ERROR, AppError.BAD_MESSAGE])
             amount = int.from_bytes(app_content[1:], 'big')
             self.account.deposit(amount)
             return bytes([MsgType.DEPOSIT, 0x01])
-        elif app_content[0] is MsgType.WITHDRAW:
+        elif app_content[0] == MsgType.WITHDRAW:
             if len(app_content) != 9:
                 return bytes([MsgType.ERROR, AppError.BAD_MESSAGE])
             amount = int.from_bytes(app_content[1:], 'big')
@@ -109,7 +109,9 @@ class Handler(ssv.StreamRequestHandler):
             # Second stage: user authentication
             if content_type is ssl.ContentType.Application:
                 app_content = self.session.open_encrypted_record(tls_content)
+                print("[LOG] Auth Recieved: " + app_content.hex(";"))
                 response = self.handle_account_auth(app_content)
+                print("      Auth Responded: " + response.hex(";"))
                 self.wfile.write(self.session.build_app_record(response))
                 return
             raise NotImplementedError(
@@ -118,7 +120,9 @@ class Handler(ssv.StreamRequestHandler):
         # Final stage: ongoing user commands
         if content_type is ssl.ContentType.Application:
             app_content = self.session.open_encrypted_record(tls_content)
+            print("[LOG] App Recieved: " + app_content.hex(";"))
             response = self.handle_routine(app_content)
+            print("      App Responded: " + response.hex(";"))
             self.wfile.write(self.session.build_app_record(response))
             return
         raise NotImplementedError(

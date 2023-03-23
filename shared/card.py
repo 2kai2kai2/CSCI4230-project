@@ -5,7 +5,7 @@ import random
 
 
 def valid_card_num(number: str) -> bool:
-    if not isinstance(number, str) or not number.isdigit() or len(number) != 16:
+    if not isinstance(number, str) or not number.isdecimal() or len(number) != 16:
         return False
     sum: int = 0
     for i in range(16):
