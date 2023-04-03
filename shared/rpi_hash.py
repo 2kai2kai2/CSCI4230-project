@@ -343,7 +343,7 @@ def SHA384(data: bytes) -> bytes:
 
 
 def HMAC(data: bytes, key: bytes,
-         algo: tuple[Callable[[bytes], bytes], bytes, bytes] = (SHA1, b'\x36' * 40, b'\x5C' * 40)) -> bytes:
+         algo: tuple[Callable[[bytes], bytes], int] = (SHA1, 64)) -> bytes:
     """
     Calculates the HMAC for the provided data.
 
@@ -351,10 +351,34 @@ def HMAC(data: bytes, key: bytes,
     ----
        - `data` - the data to generate an HMAC for. May be any length.
        - `key` - the shared key to use for the HMAC.
-       - `algo` - a tuple containing (in order), a hash function f(bytes)->bytes, HMAC pad_1, and HMAC pad_2. By default, SHA-1.
+       - `algo` - a tuple containing (in order), a hash function f(bytes)->bytes and int hash block size.
+                  By default, SHA-1, 64 bytes
     
     Returns
     ----
     A corresponding HMAC, with the length determined by (the same as) the specified hash function.
     """
-    raise NotImplementedError("Oopsies!")
+
+    # Byte Xor Operation
+    def byte_xor(ba1: bytes, ba2: bytes) -> bytes:
+        return bytes([_a ^ _b for _a, _b in zip(ba1, ba2)])
+
+    # Var definitions
+    hasher = algo[0]
+    blockSize = algo[1]
+
+    # Compute the block sized key
+    block_sized_key = key
+    # Keys longer than blockSize are shortened by hashing them
+    if len(block_sized_key) > blockSize:
+        block_sized_key = hasher(block_sized_key)
+
+    # Keys shorter than blockSize are padded to blockSize by padding with zeros on the right
+    if len(block_sized_key) < blockSize:
+        block_sized_key += bytes.fromhex('00') * (blockSize - len(block_sized_key))
+
+    # Pad key with zeros to make it blockSize bytes long
+    o_key_pad = byte_xor(block_sized_key, bytes.fromhex('5c') * blockSize)  # Outer padded key
+    i_key_pad = byte_xor(block_sized_key, bytes.fromhex('36') * blockSize)  # Inner padded key
+
+    return hasher(o_key_pad + hasher(i_key_pad + data))
