@@ -2,6 +2,7 @@
 This file contains shared implementation for the communication and verification of cards.
 """
 import random
+from typing import Optional
 
 
 def valid_card_num(number: str) -> bool:
@@ -78,14 +79,26 @@ class Card:
         return f"<Card: number:{self.number} CVC:{str(self.cvc).zfill(3)} expires:{str(self.month).zfill(2)}/{self.year} pin:{str(self.pin).zfill(4)}>"
 
     @classmethod
-    def generate_random(cls, month: int, year: int):
+    def generate_random(cls, month: int, year: int, card_num: Optional[str] = None, cvc: Optional[int] = None, pin: Optional[int] = None):
         if month < 1 or 12 < month:
             raise OverflowError("Invalid expiration month on card.")
         if year < 2000 or 2000+2**10 <= year:
             raise OverflowError("Invalid expiration year on card.")
-        card_num = ""
-        while not valid_card_num(card_num):
-            card_num = str(random.randrange(0, 10**16))
-        cvc = random.randrange(0, 1000)
-        pin = random.randrange(0, 10000)
+
+        if card_num is None:
+            while not valid_card_num(card_num):
+                card_num = str(random.randrange(0, 10**16))
+        elif not valid_card_num(card_num):
+            raise ValueError("Invalid card number on card.")
+
+        if cvc is None:
+            cvc = random.randrange(0, 1000)
+        elif cvc < 0 or 1000 <= cvc:
+            raise OverflowError("Invalid CVC on card.")
+
+        if pin is None:
+            pin = random.randrange(0, 10000)
+        elif pin < 0 or 10000 < pin:
+            raise OverflowError("Invalid PIN on card.")
+
         return Card(card_num, cvc, month, year, pin)
