@@ -72,9 +72,13 @@ def _add_account(name: str, card: Card, balance: int):
 
 _add_account("Mallory Malificent", Card(
     "0000000000000000", 666, 4, 2025, 6969), 666_00)
+_add_account("Cici Collaborator", Card(
+    "0000000000000505", 111, 5, 2025, 1111), 100_00)
 _add_account("Alice Allison", Card.generate_random(5, 2025), 1000_00)
-_add_account("Bobby McBobface", Card(
-    "0505050505050505", 123, 6, 2023, 1234), 10_00)
+_add_account("Bobby McBobface", Card.generate_random(
+    6, 2023, card_num="0505050505050505", cvc=123), 10_00)
+_add_account("Victor Evilson", Card.generate_random(
+    9, 2026, card_num="4111111111111111"), 100000_00)
 _add_account("Billy Bazillionaire", Card.generate_random(
     12, 2100), 1000000000000_00)
 
