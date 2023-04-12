@@ -50,7 +50,7 @@ def server_handle_handshake(rfile: BytesIO, wfile: BytesIO) -> ssl.Session:
 
         exchanged = int.from_bytes(key_share_dh_y_value.key_exchange)
         key = generator.compute_secret(exchanged, secret_value)
-        key = (key % 0xffffffff).to_bytes(32)
+        key = (key & 0xffffffff).to_bytes(32)
 
         # Response with a corresponding ServerHello message
         response = handshake.ServerHello()
@@ -118,7 +118,7 @@ def client_handle_handshake(rfile: BytesIO, wfile: BytesIO) -> ssl.Session:
     key_share_dh_y_value.fromData(key_share.extension_data)
     exchanged = int.from_bytes(key_share_dh_y_value.key_exchange)
     key = generator.compute_secret(exchanged, secret_value)
-    key = (key % 0xffffffff).to_bytes(32)
+    key = (key & 0xffffffff).to_bytes(32)
 
     import shared.rpi_hash as hash
 
