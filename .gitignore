@@ -1,3 +1,5 @@
 /venv
 /.vscode
 **/__pycache__
+/lib/build
+/lib/cpp.egg-info
