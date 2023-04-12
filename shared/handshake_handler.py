@@ -4,7 +4,7 @@ import shared.keygen as keygen
 from io import BytesIO
 from os import urandom
 
-import shared.rpi_hash as hash
+import shared.rpi_hash as rpi_hash
 import cpp
 
 def server_handle_handshake(rfile: BytesIO, wfile: BytesIO) -> ssl.Session:
@@ -39,17 +39,17 @@ def server_handle_handshake(rfile: BytesIO, wfile: BytesIO) -> ssl.Session:
             return None
 
         # Need to decide on a secret
-        secret_value = int.from_bytes(urandom(generator.len_bytes))
+        secret_value = int.from_bytes(urandom(generator.len_bytes), 'big')
         share = generator.compute_dh_Y(secret_value)
         computedKeyPart = handshake.KeyShareEntry(
             handshake.SupportedGroups.ffdhe8192, 
             share.to_bytes(generator.len_bytes, 'big')
             )
 
-        exchanged = int.from_bytes(key_share_dh_y_value.key_exchange)
+        exchanged = int.from_bytes(key_share_dh_y_value.key_exchange, 'big')
         secret = generator.compute_secret(exchanged, secret_value)
-        key = (secret & 0xffffffff).to_bytes(32)
-        IV = ((secret & ((0xffff) << (generator.len_bytes - 12) * 8)) >> ((generator.len_bytes - 8)*8)).to_bytes(16)
+        key = (secret & 0xffffffff).to_bytes(32, 'big')
+        IV = ((secret & ((0xffff) << (generator.len_bytes - 12) * 8)) >> ((generator.len_bytes - 8)*8)).to_bytes(16, 'big')
 
         # Response with a corresponding ServerHello message
         response = handshake.ServerHello()
@@ -64,7 +64,7 @@ def server_handle_handshake(rfile: BytesIO, wfile: BytesIO) -> ssl.Session:
         lambda x: cpp.encrypt_cbc(x, key, IV),
         lambda x: cpp.decrypt_cbc(x, key, IV),
         16,
-        hash.SHA384,
+        lambda x: rpi_hash.HMAC(x, key, (rpi_hash.SHA384, 48)),
         48
     )
 
@@ -72,7 +72,7 @@ def client_handle_handshake(rfile: BytesIO, wfile: BytesIO) -> ssl.Session:
     # We need to setup some crypto information before we send the Hello.
     # We will attempt ffdhe8192 first. 
     generator = keygen.ffdhe8192
-    secret_value = int.from_bytes(urandom(generator.len_bytes))
+    secret_value = int.from_bytes(urandom(generator.len_bytes), 'big')
     share = generator.compute_dh_Y(secret_value)
     computedKeyPart = handshake.KeyShareEntry(
         handshake.SupportedGroups.ffdhe8192, 
@@ -115,19 +115,17 @@ def client_handle_handshake(rfile: BytesIO, wfile: BytesIO) -> ssl.Session:
         return None
     key_share_dh_y_value = handshake.KeyShareEntry()
     key_share_dh_y_value.fromData(key_share.extension_data)
-    exchanged = int.from_bytes(key_share_dh_y_value.key_exchange)
+    exchanged = int.from_bytes(key_share_dh_y_value.key_exchange, 'big')
     secret = generator.compute_secret(exchanged, secret_value)
-    key = (secret & 0xffffffff).to_bytes(32)
-    IV = ((secret & ((0xffff) << (generator.len_bytes - 12) * 8)) >> ((generator.len_bytes - 8)*8)).to_bytes(16)
-
-    import shared.rpi_hash as hash
+    key = (secret & 0xffffffff).to_bytes(32, 'big')
+    IV = ((secret & ((0xffff) << (generator.len_bytes - 12) * 8)) >> ((generator.len_bytes - 8)*8)).to_bytes(16, 'big')
 
     # session: ssl.Session = ...  # placeholder
     session = ssl.Session(
         lambda x: cpp.encrypt_cbc(x, key, IV),
         lambda x: cpp.decrypt_cbc(x, key, IV),
         16,
-        hash.SHA384,
+        lambda x: rpi_hash.HMAC(x, key, (rpi_hash.SHA384, 48)),
         48
     )
     return session

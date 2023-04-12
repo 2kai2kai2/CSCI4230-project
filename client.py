@@ -169,8 +169,7 @@ def input_card() -> Card:
 
 account_auth = False
 while not account_auth:
-    # card = input_card()
-    card = Card("0000000000000000", 666, 4, 2025, 6969)
+    card = input_card()
     request = bytes([MsgType.ACCOUNT_AUTH]) + card.to_bytes()
     toSend = session.build_app_record(request)
     wfile.write(toSend)

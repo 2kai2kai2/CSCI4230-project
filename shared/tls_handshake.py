@@ -37,7 +37,7 @@ def marshal_list_of_objects(arr: list[int], elementLength: int = 1, maxLengthInB
     return ret
 
 def unmarshal_list(msg: bytes, elementLength: int = 1, lengthFieldSize: int = 2, start: int = 0) -> Union[list,int]:
-    count = int.from_bytes(msg[start:start+lengthFieldSize])
+    count = int.from_bytes(msg[start:start+lengthFieldSize], 'big')
     ret = []
     for i in range(count//elementLength):
         s = start+lengthFieldSize+i*elementLength
@@ -81,7 +81,7 @@ class Handshake:
         # First byte should be the message type
         self.msg_type = data[0]
         # Then we have the length in the next three
-        self.msg_length = int.from_bytes(data[1:4])
+        self.msg_length = int.from_bytes(data[1:4], 'big')
         return True
 
 class AlertLevel(IntEnum):
@@ -130,8 +130,8 @@ class KeyShareEntry:
         return self.group.to_bytes(2, 'big') + len(self.key_exchange).to_bytes(2, 'big') + self.key_exchange
 
     def fromData(self, data) -> int:
-        self.group = int.from_bytes(data[:2])
-        key_exchange_len = int.from_bytes(data[2:4])
+        self.group = int.from_bytes(data[:2], 'big')
+        key_exchange_len = int.from_bytes(data[2:4], 'big')
         self.key_exchange = data[4:4+key_exchange_len]
         return 4 + key_exchange_len
 
@@ -156,9 +156,9 @@ class Extension:
         return ret
 
     def unmarshal(self, data: bytes, start: int) -> int:
-        self.extension_type = int.from_bytes(data[start:start+2])
+        self.extension_type = int.from_bytes(data[start:start+2], 'big')
         # include the length of the data
-        length = int.from_bytes(data[start+2:start+4])
+        length = int.from_bytes(data[start+2:start+4], 'big')
         self.extension_data = data[start+4:start+length+4]
         return length + 4
 
@@ -248,7 +248,7 @@ class ClientHello:
         try:
             tracker = 4
             # Next 2 bytes should be legacy version information 
-            self.legacy_version = int.from_bytes(msg[tracker:tracker+2])
+            self.legacy_version = int.from_bytes(msg[tracker:tracker+2], 'big')
             tracker += 2
             
             # Next 32 have the random
@@ -258,12 +258,12 @@ class ClientHello:
             self.legacy_session_id, advance = unmarshal_list(msg, elementLength=1, lengthFieldSize=1, start=tracker)
             tracker += advance
             cs, advance = unmarshal_list(msg, elementLength=2, lengthFieldSize=2, start=tracker)
-            self.cipher_suites = [int.from_bytes(x) for x in cs]
+            self.cipher_suites = [int.from_bytes(x, 'big') for x in cs]
             tracker += advance
             self.legacy_compression_methods, advance = unmarshal_list(msg, elementLength=1, lengthFieldSize=1, start=tracker)
             tracker += advance
 
-            extensionFieldLength = int.from_bytes(msg[tracker:tracker+2])
+            extensionFieldLength = int.from_bytes(msg[tracker:tracker+2], 'big')
             tracker += 2
             subtracker = 0
             self.extensions = []
@@ -349,7 +349,7 @@ class ServerHello:
         try:
             tracker = 4
             # Next 2 bytes should be legacy version information 
-            self.legacy_version = int.from_bytes(msg[tracker:tracker+2])
+            self.legacy_version = int.from_bytes(msg[tracker:tracker+2], 'big')
             tracker += 2
             
             # Next 32 have the random
@@ -358,13 +358,13 @@ class ServerHello:
 
             self.legacy_session_id, advance = unmarshal_list(msg, elementLength=1, lengthFieldSize=1, start=tracker)
             tracker += advance
-            self.cipher_suite = int.from_bytes(msg[tracker:tracker+2])
+            self.cipher_suite = int.from_bytes(msg[tracker:tracker+2], 'big')
             tracker += 2
-            legacy_compression_method = int.from_bytes(msg[tracker:tracker+1])
+            legacy_compression_method = int.from_bytes(msg[tracker:tracker+1], 'big')
             tracker += 1
             if legacy_compression_method != 0: return False
 
-            extensionFieldLength = int.from_bytes(msg[tracker:tracker+2])
+            extensionFieldLength = int.from_bytes(msg[tracker:tracker+2], 'big')
             tracker += 2
             subtracker = 0
             self.extensions = []
@@ -397,7 +397,7 @@ class EncryptedExtensions:
         if not res: return False
         if not self.handshake.msg_type == HandshakeType.encrypted_extensions: return False
         try:
-            extensionFieldLength = int.from_bytes(msg[4:6])
+            extensionFieldLength = int.from_bytes(msg[4:6], 'big')
             subtracker = 0
             self.extensions = []
             while subtracker < extensionFieldLength:
