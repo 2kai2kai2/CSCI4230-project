@@ -1,11 +1,12 @@
 import socketserver as ssv
 from typing import Optional
-from database import Account, get_account
+from database import Account, get_account, AttemptsExceededError
 import shared.rpi_ssl as ssl
 from shared.protocol import MsgType, AppError
 from shared.card import Card
 from shared.handshake_handler import server_handle_handshake
 from shared.port import PORT
+
 
 class Handler(ssv.StreamRequestHandler):
     """
@@ -39,6 +40,9 @@ class Handler(ssv.StreamRequestHandler):
         try:
             card = Card.from_bytes(app_content[1:])
             self.account = get_account(card)
+        except AttemptsExceededError:
+            self.close = True
+            return bytes([MsgType.ERROR, AppError.ATTEMPTS_EXCEEDED])
         except:
             return bytes([MsgType.ACCOUNT_AUTH, 0x00])
         else:
@@ -83,7 +87,10 @@ class Handler(ssv.StreamRequestHandler):
         # If this is not None, account is authenticated
         self.account: Optional[Account] = None
 
+        self.user_attempts = 0
+        # If self.close is True after a response is sent, then the connection is terminated.
         self.close = False
+        print(f"[LOG] {self.client_address}: Session started.")
 
     def message_handler(self):
         """
@@ -110,8 +117,15 @@ class Handler(ssv.StreamRequestHandler):
             # Second stage: user authentication
             if content_type is ssl.ContentType.Application:
                 app_content = self.session.open_encrypted_record(tls_content)
-                print("[LOG] Auth Recieved: " + app_content.hex(";"))
+                print(
+                    f"[LOG] {self.client_address}: Auth Recieved: {app_content.hex(';')}")
                 response = self.handle_account_auth(app_content)
+                self.user_attempts += 1
+                if self.user_attempts >= 8 and self.account is None:
+                    print("      Session attempts exceeded")
+                    response = bytes(
+                        [MsgType.ERROR, AppError.ATTEMPTS_EXCEEDED])
+                    self.close = True
                 print("      Auth Responded: " + response.hex(";"))
                 self.wfile.write(self.session.build_app_record(response))
                 return
@@ -121,7 +135,8 @@ class Handler(ssv.StreamRequestHandler):
         # Final stage: ongoing user commands
         if content_type is ssl.ContentType.Application:
             app_content = self.session.open_encrypted_record(tls_content)
-            print("[LOG] App Recieved: " + app_content.hex(";"))
+            print(
+                f"[LOG] {self.client_address}: App Recieved: {app_content.hex(';')}")
             response = self.handle_routine(app_content)
             print("      App Responded: " + response.hex(";"))
             self.wfile.write(self.session.build_app_record(response))
@@ -131,8 +146,7 @@ class Handler(ssv.StreamRequestHandler):
 
     def handle(self):
         self.session = server_handle_handshake(self.rfile, self.wfile)
-        if self.session == None: 
-            self.finish()
+        if self.session == None:
             print("[FATAL] Aborted due to failed handshake.")
             return
         while not self.close:
@@ -150,9 +164,8 @@ class Handler(ssv.StreamRequestHandler):
 
     def finish(self):
         super().finish()
-        # Then do finishing stuff
-        self.close = True
-        print("[LOG] Closed connection.")
+        print(f"[LOG] {self.client_address}: Session closed")
+
 
 with ssv.ThreadingTCPServer(("localhost", PORT), Handler) as server:
     server.serve_forever()

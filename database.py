@@ -2,6 +2,11 @@
 This file provides a simple abstraction of a database attached to the server.
 """
 from shared.card import Card
+from datetime import datetime
+
+
+class AttemptsExceededError(Exception):
+    pass
 
 
 class Account:
@@ -15,6 +20,7 @@ class Account:
         self.name = name
         self.card = card
         self._balance = balance
+        self.attempts: set[datetime] = set()
 
     @property
     def balance(self) -> int:
@@ -62,6 +68,7 @@ class Account:
 
 
 _db: dict[str, Account] = {}
+_attempts: dict[str, set[datetime]] = {}
 
 
 def _add_account(name: str, card: Card, balance: int):
@@ -97,14 +104,25 @@ def get_account(card: Card) -> Account:
 
     Throws
     ----
-       - `ValueError` if no account with the card number was found.
-       - `PermissionError` if the card information did not match the found account.
+       - `PermissionError` if the card information did not match an account.
+       - `AttemptsExceededError` if the recent attempts on the card number have been exceeded.
     """
+    # Get attempts in the past 30 minutes
+    attempts = _attempts.get(card.number, set())
+    attempts = {x for x in attempts if (
+        datetime.now() - x).total_seconds() < 30 * 60}
+    # Get account if it exists
     account = _db.get(card.number)
+    # If we fail for any reason, set account as none and add the attempt
+    if account is None or card != account.card or len(attempts) > 8:
+        account = None
+        attempts.add(datetime.now())
+    # If we are in excess of failed attempts, throw this error
+    if len(attempts) >= 5:
+        raise AttemptsExceededError(
+            "Attempts on this account have been exceeded.")
+    # If we fail for any other reason, throw that error
     if account is None:
-        raise ValueError(
-            f"No matching account found for card number {card.number}.")
-    elif card != account.card:
-        raise PermissionError(
-            "Provided card details do not match the associated account.")
+        raise PermissionError(f"No matching account found.")
+    # Otherwise we are successful and return the account.
     return account

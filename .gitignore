@@ -3,3 +3,11 @@
 **/__pycache__
 /lib/build
 /lib/cpp.egg-info
+
+# LaTeX
+**/*.aux
+**/*.fdb_latexmk
+**/*.fls
+**/*.log
+**/*.out
+**/*.synctex.gz

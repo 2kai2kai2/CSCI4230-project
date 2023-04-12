@@ -1,3 +1,4 @@
+from shared.handshake_handler import client_handle_handshake
 import socket
 import shared.rpi_ssl as ssl
 from shared.card import *
@@ -5,6 +6,7 @@ from shared.protocol import *
 from getkey import getkey, keys
 from sys import exit
 from shared.port import PORT
+
 
 class ClientConnection:
     def begin_ssl(self):
@@ -15,6 +17,7 @@ class ClientConnection:
         """
 
         # First message that must be sent is the ClientHello message
+
 
 conn = socket.create_connection(("localhost", PORT))
 conn.setblocking(True)
@@ -33,7 +36,6 @@ def fetch_record() -> tuple[ssl.ContentType, bytes]:
 
 
 # ==== Handshake Stage ====
-from shared.handshake_handler import client_handle_handshake
 
 session: ssl.Session = client_handle_handshake(rfile, wfile)
 if session == None:
@@ -183,10 +185,13 @@ while not account_auth:
             pass  # handle any warnings that need to be handled
     elif rtype == ssl.ContentType.Application:
         app_content = session.open_encrypted_record(tls_content)
-        if app_content[0] != MsgType.ACCOUNT_AUTH:
+        if app_content[0] == MsgType.ERROR:
+            print(f"ERROR (app): {AppError(app_content[1]).name}\n")
+            quit()
+        elif app_content[0] != MsgType.ACCOUNT_AUTH:
             # Something went wrong. Let's just move on.
             print(
-                f"WARNING (app): Recieved app message type {MsgType(app_content[0])} instead of ACCOUNT_AUTH")
+                f"WARNING (app): Recieved app message type {MsgType(app_content[0]).name} instead of ACCOUNT_AUTH")
             continue
         if app_content[1] == 0x01:
             account_auth = True

@@ -79,5 +79,12 @@ class AppError(IntEnum):
     """
     For TLS/SSL application records with `MsgType.ERROR`, the error code is specified in byte 2.
     """
-    INVALID_STAGE = 0x00  # When a is not valid for the current stage or does not exist.
-    BAD_MESSAGE = 0x01  # When a request is incorrectly formatted
+    INVALID_STAGE = 0x00 
+    """When a request type is not valid for the current stage or does not exist."""
+    
+    BAD_MESSAGE = 0x01
+    """When a request is incorrectly formatted."""
+
+    ATTEMPTS_EXCEEDED = 0x02
+    """When login attempts are exceeded."""
+
