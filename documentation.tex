@@ -1,0 +1,344 @@
+\documentclass{article}
+
+\usepackage{amsmath}
+\usepackage{tcolorbox}
+\usepackage{verbatim}
+\usepackage{hyperref}
+\usepackage{fontawesome}
+
+\definecolor{codebackground}{rgb}{0.95,0.95,0.95}
+\newcommand{\code}[1]{\tcbox[
+    on line,
+    colback=codebackground, boxsep=2pt,
+    colframe=white, boxrule=0pt,
+    top=0pt, bottom=0pt, left=0pt, right=0pt
+]{\texttt{#1}}}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    urlcolor=blue
+}
+\urlstyle{same}
+
+\title{CSCI4230 Project Documentation}
+\author{Aidan McHugh, Kai Orita, and Bradley Presier}
+\date{April 2023}
+
+\begin{document}
+\begin{titlepage}
+    \maketitle
+    \begin{center}
+        \href{https://github.com/2kai2kai2/CSCI4230-project}{GitHub \faGithub}
+    \end{center}
+\end{titlepage}
+
+\section{Overview}
+This project implements a bank ATM system, allowing users to deposit, withdraw, and view their balance through an ATM client.
+Due to the lack of a physical machine, no real cash can be exchanged, but we assume for our purposes that this occurs if the ATM client is not an impostor. \\
+\\
+The implementation operates on three levels with different protocols, which are
+\begin{enumerate}
+    \item TCP - enabling a connection between client and server
+    \item TLS/SSL - authenticating and encrypting communication between client and server
+    \item Application - authenticating the user and providing ATM functionality
+\end{enumerate}
+Note that we consider the server, client, and user as three parties who must each be authenticated at some level.
+Also note that the TLS/SSL and Application levels each have their own mode of error handling, which will be discussed in their respective sections.
+
+\section{Usage}
+\subsection{Setup}
+This project requires Python 3, and has not been tested with versions earlier than Python 3.10.0.
+We compile and build local Python packages. This should not be an issue in most Python 3 installations. \\
+\\
+To install dependencies,
+\begin{enumerate}
+    \item (optional) Create a virtual environment of your choice.
+    \item In this directory, run \code{pip install -r requirements.txt}
+\end{enumerate}
+
+\subsection{Run Application}
+\begin{enumerate}
+    \item Run \code{python server.py} to start the server.
+    \item Run \code{python client.py} to start a client instance.
+\end{enumerate}
+
+\subsection{Provided Accounts}
+\label{sec:ProvidedAccounts}
+We have provided several accounts in the database that team blackhat might use or attack:
+\subsubsection*{Mallory Malificent}
+\textit{This is you!}
+\begin{center}
+    \begin{tabular}{r|l}
+        Card Number     & \code{0000000000000000} \\
+        CVC             & \code{666}              \\
+        Expiration Date & \code{04/2025}          \\
+        PIN             & \code{6969}
+    \end{tabular}
+\end{center}
+
+\subsubsection*{Charlie Collaborator}
+\textit{If you steal from Charlie you're a bad friend. But maybe they'll let you intercept their messages for science.}
+\begin{center}
+    \begin{tabular}{r|l}
+        Card Number     & \code{0000000000000505} \\
+        CVC             & \code{111}              \\
+        Expiration Date & \code{05/2025}          \\
+        PIN             & \code{1111}
+    \end{tabular}
+\end{center}
+
+\subsubsection*{Alice Allison}
+\textit{Alice keeps her bank information very secret.}
+\begin{center}
+    \begin{tabular}{r|l}
+        Card Number     & (random)       \\
+        CVC             & (random)       \\
+        Expiration Date & \code{05/2025} \\
+        PIN             & (random)
+    \end{tabular}
+\end{center}
+
+\subsubsection*{Bobby McBobface}
+\textit{Bobby is less good at keeping secrets than Alice.}
+\begin{center}
+    \begin{tabular}{r|l}
+        Card Number     & \code{0505050505050505} \\
+        CVC             & \code{123}              \\
+        Expiration Date & \code{06/2023}          \\
+        PIN             & (random)
+    \end{tabular}
+\end{center}
+
+\subsubsection*{Victor Evilson}
+\textit{Maybe you feel bad about stealing from Bobby. Victor is very evil so the only issue with stealing from him is that he might come find you.}
+\begin{center}
+    \begin{tabular}{r|l}
+        Card Number     & \code{4111111111111111} \\
+        CVC             & (random)                \\
+        Expiration Date & \code{09/2026}          \\
+        PIN             & (random)
+    \end{tabular}
+\end{center}
+
+\subsubsection*{Billy Bazillionaire}
+\textit{Billy has a lot of money. He probably wouldn't miss it if some disappeared, right?}
+\begin{center}
+    \begin{tabular}{r|l}
+        Card Number     & (random)       \\
+        CVC             & (random)       \\
+        Expiration Date & \code{12/2100} \\
+        PIN             & (random)
+    \end{tabular}
+\end{center}
+
+\subsection{Structure Overview}
+This project is implemented using Python 3 and C++.
+Specifically, Python is primarily used while an included Python package is implemented using C++. \\
+Throughout this project, we have tried to be thorough in
+In the following, we will describe the different components:
+\subsubsection{Client/Server}
+The client (\code{client.py}) and server (\code{server.py} and \code{database.py}) exist in the main directory of this project.
+These are the main entrypoints for this project, and neither party should have access to the internal memory of the other process.
+\subsubsection{Shared Libraries}
+These libraries are contained in \code{./shared/} and are used by both the server and client (but do not share data between the two).
+The libraries in this directory are implemented in Python.
+\subsubsection{C++ library}
+This Python module is implemented using C++ in \code{./lib/} and will be built by \code{pip} when installing dependencies.
+
+\section{SSL Implementation}
+At this level, we attempt to implement a simplified version of TLS 1.3.
+In this, we attempt to implement cryptographic algorithms in a manner that is usage-independent and reusable.
+
+\subsection{Symmetric Encryption}
+We implement only AES-256 with Cipher Block Chaining.
+This is contained in the C++ library.
+This differs from TLS 1.3 in that CBC-mode is not permitted by TLS 1.3, but is otherwise compliant.
+
+\subsection{Hash Functions}
+We implement SHA-1, SHA-256, and SHA-384 in \code{./shared/rpi\_hash.py}.
+However, in keeping with TLS 1.3 and best practices, SHA-1 is not considered a valid option for any purpose.
+
+\subsection{Message Authentication Codes (MACs)}
+We implement HMAC in \code{./shared/rpi\_hash.py}.
+
+\subsection{Digital Signatures}
+We implement only RSASSA-PSS (Signature Scheme with Appendix; Probabilistic Signature Scheme) in \code{./shared/rsassa\_pss.py} as specified in RFC 8017.
+This is a preferred digital signature scheme by TLS 1.3 and produces a nondeterministic signature that can be used to verify the original message using the RSA public key.
+Our implementation can apply any hash function, but we use SHA-256 and SHA-384 in keeping with TLS 1.3 and best practices.
+Both \code{rsa\_pss\_rsae} and \code{rsa\_pss\_pss} modes as defined by TLS 1.3 use this algorithm,
+\textbf{TODO: DO WE SUPPORT BOTH OR JUST ONE?}
+
+\subsection{TLS Records}
+Each message in a TLS/SSL session is contained within a \href{https://en.wikipedia.org/wiki/Transport_Layer_Security#TLS_record}{TLS record}.
+Functions to encode and decode these, along with a \code{Session} class containing negotiated TLS/SSL session information are implemented in \code{./shared/rpi\_ssl.py}.
+A \code{Session} will only exist after the handshake is completed, and thus the Alert and Application record implementations are included within it.
+The \code{Session} can automatically manage encryption, decryption, and verification/creation of MAC.
+Essentially, it provides an interface for the Application-level.
+
+\subsection{TLS/SSL Error Handling}
+Should a TLS/SSL-related error occur on this level, an \code{SSLError} will the thrown, which should be reported to the other party
+via a corresponding TLS Alert record.
+We consider most or all of these errors to be fatal.
+
+\section{Application-Level Protocol} % ================ APPLICATION LEVEL ================
+This is also partially described in \code{./shared/protocol.py}.
+All messages at the application level should be in the body of an SSL/TLS application record.
+This means that application level messages are encrypted and authenticated between the client and server (but not necessarily the user).
+Note messages sent follow the format of a client request, followed by a server response.
+The server should never spontaneously send a message.
+
+\subsection{Application Message Format}
+Each application-level message starts with a single header byte describing what application message type it contains.
+These types are defined by the enum \code{MsgType} in \code{./shared/protocol.py}.
+The rest of the message contains further details:
+\subsubsection{\texttt{ACCOUNT\_AUTH} message type}
+This message type is used when authenticating the user.
+Prior to user authentication being completed, only \code{ACCOUNT\_AUTH} and possibly \code{ERROR} messages should be sent.
+If the server responds successful, user authentication is now completed and the session is permanently associated with the provided account. \\
+\\
+\textbf{Request Format} \\
+\begin{tabular}{llll}
+    Start         & Length        & Content     &                                           \\\hline
+    \texttt{0x00} & \texttt{0x01} & \code{0x00} & (\code{ACCOUNT\_AUTH} header byte)        \\
+    \texttt{0x01} & \texttt{0x0c} & Card Data   & (formatted with \code{Card::to\_bytes()})
+\end{tabular} \\
+\textbf{Response Format} \\
+\begin{tabular}{llll}
+    Start         & Length        & Content                    &                                            \\\hline
+    \texttt{0x00} & \texttt{0x01} & \code{0x00}                & (\code{ACCOUNT\_AUTH} header byte)         \\
+    \texttt{0x01} & \texttt{0x01} & \code{0x00} or \code{0x01} & (unsuccessful or successful, respectively)
+\end{tabular} \\
+or, if attempts have been exceeded, the response is a fatal \code{ATTEMPTS\_EXCEEDED}
+\hyperref[sec:ApplicationError]{error message$_\downarrow$} (this can be considered unsuccessful).
+
+\subsubsection{\texttt{BALANCE} message type}
+This message type should only be used after the user is authenticated.
+It requests the current account balance of the user from the server. \\
+\textbf{Request Format} \\
+\begin{tabular}{llll}
+    Start         & Length        & Content     &                              \\\hline
+    \texttt{0x00} & \texttt{0x01} & \code{0x01} & (\code{BALANCE} header byte)
+\end{tabular} \\
+\textbf{Response Format} \\
+\begin{tabular}{llll}
+    Start         & Length        & Content                     &                              \\\hline
+    \texttt{0x00} & \texttt{0x01} & \code{0x01}                 & (\code{BALANCE} header byte) \\
+    \texttt{0x01} & \texttt{0x08} & big-endian unsigned integer & (account balance in cents)
+\end{tabular}
+
+\subsubsection{\texttt{DEPOSIT} message type}
+This message type should only be used after the user is authenticated.
+It requests that an amount be added to the user's balance.
+With a valid ATM client, the corresponding amount of cash will have been inserted.
+While \code{DEPOSIT} returns its success status in a similar manner to \code{WITHDRAW}, it will rarely if ever be unsuccessful. \\
+\textbf{Request Format} \\
+\begin{tabular}{llll}
+    Start         & Length        & Content                     &                              \\\hline
+    \texttt{0x00} & \texttt{0x01} & \code{0x02}                 & (\code{DEPOSIT} header byte) \\
+    \texttt{0x01} & \texttt{0x08} & big-endian unsigned integer & (deposit amount in cents)
+\end{tabular} \\
+\textbf{Response Format} \\
+\begin{tabular}{llll}
+    Start         & Length        & Content                    &                                            \\\hline
+    \texttt{0x00} & \texttt{0x01} & \code{0x02}                & (\code{DEPOSIT} header byte)               \\
+    \texttt{0x01} & \texttt{0x01} & \code{0x00} or \code{0x01} & (unsuccessful or successful, respectively)
+\end{tabular}
+
+\subsubsection{\texttt{WITHDRAW} message type}
+This message type should only be used after the user is authenticated.
+It requests that an amount be deducted from the user's balance.
+With a valid ATM client, the corresponding amount of cash will be provided if successful. \\
+\textbf{Request Format} \\
+\begin{tabular}{llll}
+    Start         & Length        & Content                     &                               \\\hline
+    \texttt{0x00} & \texttt{0x01} & \code{0x03}                 & (\code{WITHDRAW} header byte) \\
+    \texttt{0x01} & \texttt{0x08} & big-endian unsigned integer & (withdraw amount in cents)
+\end{tabular} \\
+\textbf{Response Format} \\
+\begin{tabular}{llll}
+    Start         & Length        & Content                    &                                            \\\hline
+    \texttt{0x00} & \texttt{0x01} & \code{0x03}                & (\code{WITHDRAW} header byte)              \\
+    \texttt{0x01} & \texttt{0x01} & \code{0x00} or \code{0x01} & (unsuccessful or successful, respectively)
+\end{tabular}
+
+\subsubsection{\texttt{ERROR} message type}
+\label{sec:ApplicationError}
+This message type represents a serious error with a request at the application level.
+It should only be sent by the server as a response to a client request.
+Error codes are defined by the enum \code{AppError} in \code{./shared/protocol.py}.
+See \hyperref[sec:ApplicationErrorCodes]{the next section$_\downarrow$} for error type details. \\
+\textbf{Response Format} \\
+\begin{tabular}{llll}
+    Start         & Length        & Content     &                                    \\\hline
+    \texttt{0x00} & \texttt{0x01} & \code{0xFF} & (\code{ERROR})                     \\
+    \texttt{0x01} & \texttt{0x01} & error code  & (from \code{AppError} header byte)
+\end{tabular}
+
+\subsection{Application Error Codes}
+\label{sec:ApplicationErrorCodes}
+Application error codes may be sent by the server in an \code{ERROR}-type application message in response to client requests.
+They should not occur or be sent in any other situation.
+If a valid response exists for the request's own message type (for example insufficient funds for \code{WITHDRAW}), then that will be used instead.
+
+\subsubsection{\texttt{INVALID\_STAGE} (\texttt{0x00})}
+This error code may be sent when a application message is sent at an improper time.
+For example, if \code{ACCOUNT\_AUTH} messages are sent after the user is authenticated,
+or if any \code{BALANCE}, \code{DEPOSIT}, or \code{WITHDRAW} messages are sent before a user is authenticated.
+Additionally, this error code may be sent if a nonexistant message type is received.
+
+\subsubsection{\texttt{BAD\_MESSAGE} (\text{0x01})}
+This error code may be sent when the content following a valid error code appears to be improperly formatted.
+Note that as an application-level error, this will not occur if SSL/TLS issues arise.
+
+\subsubsection{\texttt{ATTEMPTS\_EXCEEDED} (\text{0x02})}
+This error will occur if the session has exceeded its permitted failed user authentication attempts
+or if the specified card number has recieved too many recent failed login attempts.
+As such, it can only occur in response to an \code{ACCOUNT\_AUTH} request.
+This error is always fatal.
+For more details, see \hyperref[sec:CardLoginAttemptLimit]{below$_\downarrow$}
+
+
+\subsection{Credit/Debit Cards}
+Implementation for card formats and related details is in \code{./shared/card.py}.
+The \code{Card} class represents the fixed-length fields of a standard credit or debit card: \\
+\\
+\begin{tabular}{rl}
+    \centering
+    Card Number & A 16-character numerical string which passes the Luhn test. \\
+    CVC         & An integer in the range \texttt{[000,999]}.                 \\
+    Month       & An integer in the range \texttt{[1,12]}.                    \\
+    Year        & An integer in the range \texttt{[2000,3023]}.               \\
+    PIN         & An integer in the range \texttt{[0000,9999]}.               \\
+\end{tabular}\\
+\\
+These can be serialized to and from 12 bytes for transmission. \\
+Additionally, a \code{Card::generateRandom()} method is provided which will generate a random valid card, optionally with some set fields.
+
+\subsection{Database}
+Implementation for the database is in \code{./database.py}. This relies heavily on the above \code{Card} implementation.
+Primarily, the database is made up of \code{Account} objects, which store information associated with the account, including the card, balance, and accountholder's name.
+Note that the name is not used for verification. \\
+The database implemented here is intended to represent an abstraction of a real database, but does not fully implement the features of a typical database.
+For example, restarting the server will cause a database reset, as all data is stored exclusively in memory. \\
+\\
+The database exposes the \code{get\_account()} function to the server (and only the server),
+and the server is permitted to modify a returned \code{Account}'s balance.
+The client and user may not access the database except through the server.
+
+\subsubsection{Login Attempt Limit}
+\label{sec:CardLoginAttemptLimit}
+The database implements a limit on recent attempts to login with any card number.
+If 5 or more failed attempts have occurred in the past 30 minutes (including any attempts that failed because of this),
+the database will throw an \code{AttemptsExceededError} that should be caught by the caller and transmitted to the client. \\
+Note that to prevent this being used as a method to find other users' card numbers, login attempts for
+unused card numbers will have similar behavior in this regard as login attempts providing invalid verification details.
+So just as five attempts with a correct card number but incorrect PIN will cause further attempts with this card number to error,
+so too will five attempts with an incorrect card number. This error is fatal.
+
+\subsubsection{Generating Accounts}
+A number of accounts are generated when the database is started.
+Many of these randomize their card fields.
+See \hyperref[sec:ProvidedAccounts]{above$^\uparrow$} for the known account details.
+
+\end{document}
