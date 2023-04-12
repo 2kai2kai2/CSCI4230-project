@@ -1,5 +1,5 @@
 import shared.rpi_ssl as ssl
-import shared.ssl_handshake as handshake
+import shared.tls_handshake as handshake
 import shared.keygen as keygen
 from io import BytesIO
 from os import urandom
