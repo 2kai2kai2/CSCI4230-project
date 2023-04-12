@@ -3,9 +3,20 @@ import shared.rpi_ssl as ssl
 from shared.card import *
 from shared.protocol import *
 from getkey import getkey, keys
+from sys import exit
+from shared.port import PORT
 
+class ClientConnection:
+    def begin_ssl(self):
+        """
+        Kicks off the SSL from the client end. This system is inspired by 
+        SSL 1.3 as seen in (RFC 8446)[https://datatracker.ietf.org/doc/html/rfc8446#section-2]
+        but does not implement the full suite of features for our use-case.
+        """
 
-conn = socket.create_connection(("localhost", 125))
+        # First message that must be sent is the ClientHello message
+
+conn = socket.create_connection(("localhost", PORT))
 conn.setblocking(True)
 rfile = conn.makefile('rb', buffering=0)
 wfile = conn.makefile('wb', buffering=0)
@@ -22,10 +33,11 @@ def fetch_record() -> tuple[ssl.ContentType, bytes]:
 
 
 # ==== Handshake Stage ====
-# TODO: Handshake
+from shared.handshake_handler import client_handle_handshake
 
-
-session: ssl.Session = ...  # placeholder
+session: ssl.Session = client_handle_handshake(rfile, wfile)
+if session == None:
+    exit(1)
 
 # ==== Account Auth Stage ====
 
@@ -155,9 +167,11 @@ def input_card() -> Card:
 
 account_auth = False
 while not account_auth:
-    card = input_card()
+    # card = input_card()
+    card = Card("0000000000000000", 666, 4, 2025, 6969)
     request = bytes([MsgType.ACCOUNT_AUTH]) + card.to_bytes()
-    wfile.write(session.build_app_record(request))
+    toSend = session.build_app_record(request)
+    wfile.write(toSend)
 
     rtype, tls_content = fetch_record()
     if rtype == ssl.ContentType.Alert:

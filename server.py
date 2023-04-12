@@ -4,7 +4,8 @@ from database import Account, get_account
 import shared.rpi_ssl as ssl
 from shared.protocol import MsgType, AppError
 from shared.card import Card
-
+from shared.handshake_handler import server_handle_handshake
+from shared.port import PORT
 
 class Handler(ssv.StreamRequestHandler):
     """
@@ -129,6 +130,11 @@ class Handler(ssv.StreamRequestHandler):
             "We don't know what to do with non-application messages at this stage.")
 
     def handle(self):
+        self.session = server_handle_handshake(self.rfile, self.wfile)
+        if self.session == None: 
+            self.finish()
+            print("[FATAL] Aborted due to failed handshake.")
+            return
         while not self.close:
             try:
                 self.message_handler()
@@ -145,7 +151,8 @@ class Handler(ssv.StreamRequestHandler):
     def finish(self):
         super().finish()
         # Then do finishing stuff
+        self.close = True
+        print("[LOG] Closed connection.")
 
-
-with ssv.ThreadingTCPServer(("localhost", 125), Handler) as server:
+with ssv.ThreadingTCPServer(("localhost", PORT), Handler) as server:
     server.serve_forever()

@@ -46,20 +46,28 @@ def unmarshal_list(msg: bytes, elementLength: int = 1, lengthFieldSize: int = 2,
 
 class HandshakeType(IntEnum):
     # https://datatracker.ietf.org/doc/html/rfc8446#section-4
+    NONE = -1
     client_hello = 1
     server_hello = 2
     encrypted_extensions = 8
+    certificate = 11
+    certificate_verify = 15
+    finished = 20
 
 class Handshake:
-    def __init__(self, msg_type: int, msg_length: int):
+    def __init__(self, msg_type: int = -1, msg_length: int = 0):
         # Must be a supported handshake type
         assert(msg_type in HandshakeType._value2member_map_) 
         self.msg_type = msg_type
         self.msg_length = msg_length
 
     def __str__(self):
-        if self.msg_type == HandshakeType.client_hello: return "Client Hello"
-        if self.msg_type == HandshakeType.server_hello: return "Server Hello"
+        if self.msg_type == HandshakeType.client_hello: return "ClientHello"
+        if self.msg_type == HandshakeType.server_hello: return "ServerHello"
+        if self.msg_type == HandshakeType.encrypted_extensions: return "EncryptedExtensions"
+        if self.msg_type == HandshakeType.certificate: return "Certificate"
+        if self.msg_type == HandshakeType.certificate_verify: return "CertificateVerify"
+        if self.msg_type == HandshakeType.finished: return "Finished"
 
     def marshal(self) -> bytes:
         # Message needs to fit in a uint-24
@@ -76,6 +84,19 @@ class Handshake:
         self.msg_length = int.from_bytes(data[1:4])
         return True
 
+class AlertLevel(IntEnum):
+    warning = 1
+    fatal = 2
+
+class AlertDescription(IntEnum):
+    close_notify = 0
+    unexpected_message = 10
+
+class Alert:
+    def populate(self, alert_level : AlertLevel, alert_description: AlertDescription):
+        self.alert_level = alert_level
+        self.alert_description = alert_description
+
 class ExtensionType(IntEnum):
     # A full list of extensions can be found in RFC 8446, Section 4.2:
     # https://datatracker.ietf.org/doc/html/rfc8446#section-4.2
@@ -84,6 +105,7 @@ class ExtensionType(IntEnum):
     supported_versions = 43
     key_share = 51
     server_name = 0
+    server_certificate_type = 20
 
 class SignatureAlgorithms(IntEnum):
     # A full list of signature algorithms is in RFC 8446, Section 4.2.3:
@@ -93,15 +115,18 @@ class SignatureAlgorithms(IntEnum):
 class SupportedGroups(IntEnum):
     # https://datatracker.ietf.org/doc/html/rfc8446#section-4.2.7
     ffdhe2048 = 0x0100
+    ffdhe8192 = 0x0104
+    NONE = -1
 
 class KeyShareEntry:
-    def __init__(self, group: int, key_exchange: bytes):
+    def __init__(self, group: int = SupportedGroups.NONE, key_exchange: bytes = bytes(0)):
         # Make sure we were given a valid group
         assert(group in SupportedGroups._value2member_map_)
         self.group = group
         self.key_exchange = key_exchange
 
     def toData(self) -> bytes:
+        assert(self.group != SupportedGroups.NONE and len(self.key_exchange) > 0)
         return self.group.to_bytes(2, 'big') + len(self.key_exchange).to_bytes(2, 'big') + self.key_exchange
 
     def fromData(self, data) -> int:
@@ -156,9 +181,6 @@ class ClientHello:
     cipher_suites = [TLS_AES_128_SHA1]
     # As per the spec, this must be a vector containing a single zero byte
     legacy_compression_methods = [bytes([0])]
-    extensions = {
-        # ExtensionType.key_share: KeyShare_ClientShares()
-    }
     extensions = [
         MakeExtension(ExtensionType.supported_versions, 0x0304.to_bytes(2, 'big')),
         MakeExtension(ExtensionType.signature_algorithms, marshal_list_of_ints([
@@ -171,15 +193,14 @@ class ClientHello:
         MakeExtension(ExtensionType.supported_groups, marshal_list_of_ints([
             SupportedGroups.ffdhe2048
         ], 2, 2)), # p = 2048
+        # Our client only enables authenticating a server with raw public keys
+        # MakeExtension(ExtensionType.server_certificate_type, )
     ]
     handshake = Handshake(HandshakeType.client_hello, -1)
 
     def populate(self, DHKeyShare: KeyShareEntry, randomFunc: Callable[[int], bytes] = urandom):
         # Create 32 random bytes for the 'random' field (used as a Nonce)
         self.random = randomFunc(32)
-        # Make sure the keyshare we have works with the hard-coded hello parameters
-        # todo:: change this when more algorithms are implemented
-        assert(DHKeyShare.group == SupportedGroups.ffdhe2048)
         # Set the client shares information
         self.extensions.append(MakeExtension(ExtensionType.key_share, DHKeyShare.toData()))
 
@@ -269,7 +290,9 @@ class ServerHello:
 
     handshake = Handshake(HandshakeType.server_hello, -1)
 
-    def populate(self, correspondingHello: ClientHello, selectedCipherSuite, randomFunc: Callable[[int], bytes] = urandom):
+    RETRY_REQUEST = 0xCF21AD74E59A6111BE1D8C021E65B891C2A211167ABB8C5E079E09E2C8A8339C.to_bytes(32, 'big')
+
+    def populate(self, correspondingHello: ClientHello, selectedCipherSuite, DHKeyShare: KeyShareEntry, randomFunc: Callable[[int], bytes] = urandom):
         # Create 32 random bytes for the 'random' field (used as a Nonce)
         self.random = randomFunc(32)
         self.legacy_session_id = correspondingHello.legacy_session_id
@@ -277,7 +300,14 @@ class ServerHello:
             print("[WARN] Selected Cipher Suite {}, but the corresponding ClientHello message do not offer it")
             return False
         self.cipher_suite = selectedCipherSuite
+        self.extensions.append(MakeExtension(ExtensionType.key_share, DHKeyShare.toData()))
         return True
+
+    def setRetryRequest(self):
+        self.random = self.RETRY_REQUEST
+
+    def isRetryRequest(self):
+        return self.random == self.RETRY_REQUEST
 
     def marshal(self):
         """
@@ -379,6 +409,11 @@ class EncryptedExtensions:
         except:
             return False
 
+class Certificate:
+    handshake = Handshake(HandshakeType.certificate, -1)
+    def populate(self, public_key: bytes):
+        self.public_key = public_key
+    # def marshal(self) -> bytes:
 
 
 

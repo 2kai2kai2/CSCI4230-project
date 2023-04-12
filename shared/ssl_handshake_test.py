@@ -32,7 +32,7 @@ if __name__ == "__main__":
     client.unmarshal(example)
 
     server = ServerHello()
-    server.populate(client, client.cipher_suites[0], fixedRandom)
+    server.populate(client, client.cipher_suites[0], computedKey, fixedRandom)
 
     server_example = 0x0200002f030300000000000000000000000000000000000000000000000000000000000000aa010013a1000006002b00020304.to_bytes(51, 'big')
     server2 = ServerHello()
