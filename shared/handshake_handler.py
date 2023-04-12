@@ -7,8 +7,6 @@ from os import urandom
 import shared.rpi_hash as hash
 import cpp
 
-IV = bytes(16)
-
 def server_handle_handshake(rfile: BytesIO, wfile: BytesIO) -> ssl.Session:
     # We first wait for the ClientHello message
     hs = handshake.Handshake()
@@ -49,8 +47,9 @@ def server_handle_handshake(rfile: BytesIO, wfile: BytesIO) -> ssl.Session:
             )
 
         exchanged = int.from_bytes(key_share_dh_y_value.key_exchange)
-        key = generator.compute_secret(exchanged, secret_value)
-        key = (key & 0xffffffff).to_bytes(32)
+        secret = generator.compute_secret(exchanged, secret_value)
+        key = (secret & 0xffffffff).to_bytes(32)
+        IV = ((secret & ((0xffff) << (generator.len_bytes - 12) * 8)) >> ((generator.len_bytes - 8)*8)).to_bytes(16)
 
         # Response with a corresponding ServerHello message
         response = handshake.ServerHello()
@@ -117,8 +116,9 @@ def client_handle_handshake(rfile: BytesIO, wfile: BytesIO) -> ssl.Session:
     key_share_dh_y_value = handshake.KeyShareEntry()
     key_share_dh_y_value.fromData(key_share.extension_data)
     exchanged = int.from_bytes(key_share_dh_y_value.key_exchange)
-    key = generator.compute_secret(exchanged, secret_value)
-    key = (key & 0xffffffff).to_bytes(32)
+    secret = generator.compute_secret(exchanged, secret_value)
+    key = (secret & 0xffffffff).to_bytes(32)
+    IV = ((secret & ((0xffff) << (generator.len_bytes - 12) * 8)) >> ((generator.len_bytes - 8)*8)).to_bytes(16)
 
     import shared.rpi_hash as hash
 
