@@ -7,6 +7,7 @@
 from os import urandom
 from enum import IntEnum
 from typing import Union, Callable
+import shared.rpi_ssl as ssl
 
 # We define our own cipher with a unique custom value
 TLS_AES_128_SHA1 = 0x13A1
@@ -16,7 +17,9 @@ def marshal_list_of_bytes(arr: list[bytes], elementLength: int = 1, maxLengthInB
     ret = (len(arr) * elementLength).to_bytes(maxLengthInBytes, 'big')
     # Encode every object sequenially
     for el in arr:
-        assert(len(el) == elementLength)
+        if len(el) != elementLength:
+            raise ssl.SSLError(ssl.AlertLevel.FATAL, ssl.AlertType.InternalError,
+                               "Invalid item size while marshalling bytes.")
         ret += el
     return ret
 
@@ -57,7 +60,9 @@ class HandshakeType(IntEnum):
 class Handshake:
     def __init__(self, msg_type: int = -1, msg_length: int = 0):
         # Must be a supported handshake type
-        assert(msg_type in HandshakeType._value2member_map_) 
+        if msg_type not in HandshakeType._value2member_map_:
+            raise ssl.SSLError(ssl.AlertLevel.FATAL, ssl.AlertType.InternalError,
+                               "Unsupported handshake type.")
         self.msg_type = msg_type
         self.msg_length = msg_length
 
@@ -70,30 +75,38 @@ class Handshake:
         if self.msg_type == HandshakeType.finished: return "Finished"
 
     def marshal(self) -> bytes:
+        """
+        Generic marshalling function for all handshake messages.
+
+        Throws
+        ----
+           - `SSLError (FATAL, RecordOverflow)` if message cannot fit in a uint-24.
+        """
         # Message needs to fit in a uint-24
-        assert(self.msg_length > 0 and self.msg_length < 2**24)
+        if self.msg_length <= 0 or self.msg_length >= 2**24:
+            raise ssl.SSLError(ssl.AlertLevel.FATAL, ssl.AlertType.RecordOverflow, "Handshake message must fit in a uint-24.")
         ret = self.msg_type.to_bytes(1, 'big')
         ret += self.msg_length.to_bytes(3, 'big')
         return ret
 
-    def unmarshal(self, data: bytes) -> bool:
-        if len(data) < 4: return False
+    def unmarshal(self, data: bytes):
+        """
+        Generic unmarshalling function for all handshake messages.
+        Saves information to `self`.
+
+        Throws
+        ----
+           - `SSLError (FATAL, DecodeError)` if packet has insufficient length.
+        """
+        if len(data) < 4:
+            raise ssl.SSLError(ssl.AlertLevel.FATAL, ssl.AlertType.DecodeError, "Failed to unmarshal packet" + data.hex())
         # First byte should be the message type
         self.msg_type = data[0]
         # Then we have the length in the next three
         self.msg_length = int.from_bytes(data[1:4], 'big')
-        return True
-
-class AlertLevel(IntEnum):
-    warning = 1
-    fatal = 2
-
-class AlertDescription(IntEnum):
-    close_notify = 0
-    unexpected_message = 10
 
 class Alert:
-    def populate(self, alert_level : AlertLevel, alert_description: AlertDescription):
+    def populate(self, alert_level: ssl.AlertLevel, alert_description: ssl.AlertType):
         self.alert_level = alert_level
         self.alert_description = alert_description
 
@@ -121,12 +134,16 @@ class SupportedGroups(IntEnum):
 class KeyShareEntry:
     def __init__(self, group: int = SupportedGroups.NONE, key_exchange: bytes = bytes(0)):
         # Make sure we were given a valid group
-        assert(group in SupportedGroups._value2member_map_)
+        if group not in SupportedGroups._value2member_map_:
+            raise ssl.SSLError(ssl.AlertLevel.FATAL, ssl.AlertType.InternalError, "Invalid group type.")
         self.group = group
         self.key_exchange = key_exchange
 
     def toData(self) -> bytes:
-        assert(self.group != SupportedGroups.NONE and len(self.key_exchange) > 0)
+        if self.group == SupportedGroups.NONE:
+            raise ssl.SSLError(ssl.AlertLevel.FATAL, ssl.AlertType.InternalError, "Group type cannot be NONE.")
+        if len(self.key_exchange) == 0:
+            raise ssl.SSLError(ssl.AlertLevel.FATAL, ssl.AlertType.InternalError, "key_exchange cannot be empty.")
         return self.group.to_bytes(2, 'big') + len(self.key_exchange).to_bytes(2, 'big') + self.key_exchange
 
     def fromData(self, data) -> int:
@@ -239,44 +256,45 @@ class ClientHello:
         ret = prefix + ret
         return ret
 
-    def unmarshal(self, msg: bytes) -> bool:
+    def unmarshal(self, msg: bytes):
+        """
+        Throws
+        ----
+           - `SSLError (FATAL, UnexpectedMsg)` if message type is not `client_hello`
+           - Other stuff, maybe
+        """
         # First we have the prefix that we can strip away
-        res = self.handshake.unmarshal(msg)
-        if not res: return False
-        if not self.handshake.msg_type == HandshakeType.client_hello: return False
+        self.handshake.unmarshal(msg)
+        if self.handshake.msg_type != HandshakeType.client_hello:
+            raise ssl.SSLError(ssl.AlertLevel.FATAL, ssl.AlertType.UnexpectedMsg,
+                               "Recieved unexpected message type (should have been client_hello)")
 
-        try:
-            tracker = 4
-            # Next 2 bytes should be legacy version information 
-            self.legacy_version = int.from_bytes(msg[tracker:tracker+2], 'big')
-            tracker += 2
-            
-            # Next 32 have the random
-            self.random = msg[tracker:tracker+32]
-            tracker += 32
+        tracker = 4
+        # Next 2 bytes should be legacy version information 
+        self.legacy_version = int.from_bytes(msg[tracker:tracker+2], 'big')
+        tracker += 2
+        
+        # Next 32 have the random
+        self.random = msg[tracker:tracker+32]
+        tracker += 32
 
-            self.legacy_session_id, advance = unmarshal_list(msg, elementLength=1, lengthFieldSize=1, start=tracker)
-            tracker += advance
-            cs, advance = unmarshal_list(msg, elementLength=2, lengthFieldSize=2, start=tracker)
-            self.cipher_suites = [int.from_bytes(x, 'big') for x in cs]
-            tracker += advance
-            self.legacy_compression_methods, advance = unmarshal_list(msg, elementLength=1, lengthFieldSize=1, start=tracker)
-            tracker += advance
+        self.legacy_session_id, advance = unmarshal_list(msg, elementLength=1, lengthFieldSize=1, start=tracker)
+        tracker += advance
+        cs, advance = unmarshal_list(msg, elementLength=2, lengthFieldSize=2, start=tracker)
+        self.cipher_suites = [int.from_bytes(x, 'big') for x in cs]
+        tracker += advance
+        self.legacy_compression_methods, advance = unmarshal_list(msg, elementLength=1, lengthFieldSize=1, start=tracker)
+        tracker += advance
 
-            extensionFieldLength = int.from_bytes(msg[tracker:tracker+2], 'big')
-            tracker += 2
-            subtracker = 0
-            self.extensions = []
-            while subtracker < extensionFieldLength:
-                ex = Extension()
-                consumed = ex.unmarshal(msg, start=tracker+subtracker)
-                subtracker += consumed
-                self.extensions.append(ex)
-
-            return True
-        except Exception as ex:
-            print("[ERROR]", ex)
-            return False
+        extensionFieldLength = int.from_bytes(msg[tracker:tracker+2], 'big')
+        tracker += 2
+        subtracker = 0
+        self.extensions = []
+        while subtracker < extensionFieldLength:
+            ex = Extension()
+            consumed = ex.unmarshal(msg, start=tracker+subtracker)
+            subtracker += consumed
+            self.extensions.append(ex)
 
 class ServerHello:
     legacy_version = 0x0303
@@ -341,42 +359,46 @@ class ServerHello:
         return ret
 
     def unmarshal(self, msg: bytes) -> bool:
+        """
+        Throws
+        ----
+           - `SSLError (FATAL, UnexpectedMsg)` if message type is not `server_hello`
+           - Other stuff, maybe
+        """
         # First we have the prefix that we can strip away
-        res = self.handshake.unmarshal(msg)
-        if not res: return False
-        if not self.handshake.msg_type == HandshakeType.server_hello: return False
+        self.handshake.unmarshal(msg)
+        if self.handshake.msg_type != HandshakeType.server_hello:
+            raise ssl.SSLError(ssl.AlertLevel.FATAL, ssl.AlertType.UnexpectedMsg,
+                               "Recieved unexpected message type (should have been server_hello)")
 
-        try:
-            tracker = 4
-            # Next 2 bytes should be legacy version information 
-            self.legacy_version = int.from_bytes(msg[tracker:tracker+2], 'big')
-            tracker += 2
-            
-            # Next 32 have the random
-            self.random = msg[tracker:tracker+32]
-            tracker += 32
+        tracker = 4
+        # Next 2 bytes should be legacy version information 
+        self.legacy_version = int.from_bytes(msg[tracker:tracker+2], 'big')
+        tracker += 2
+        
+        # Next 32 have the random
+        self.random = msg[tracker:tracker+32]
+        tracker += 32
 
-            self.legacy_session_id, advance = unmarshal_list(msg, elementLength=1, lengthFieldSize=1, start=tracker)
-            tracker += advance
-            self.cipher_suite = int.from_bytes(msg[tracker:tracker+2], 'big')
-            tracker += 2
-            legacy_compression_method = int.from_bytes(msg[tracker:tracker+1], 'big')
-            tracker += 1
-            if legacy_compression_method != 0: return False
+        self.legacy_session_id, advance = unmarshal_list(msg, elementLength=1, lengthFieldSize=1, start=tracker)
+        tracker += advance
+        self.cipher_suite = int.from_bytes(msg[tracker:tracker+2], 'big')
+        tracker += 2
+        legacy_compression_method = int.from_bytes(msg[tracker:tracker+1], 'big')
+        tracker += 1
+        if legacy_compression_method != 0:
+            raise ssl.SSLError(ssl.AlertLevel.FATAL, ssl.AlertType.DecodeError,
+                               "We do not support compression.")
 
-            extensionFieldLength = int.from_bytes(msg[tracker:tracker+2], 'big')
-            tracker += 2
-            subtracker = 0
-            self.extensions = []
-            while subtracker < extensionFieldLength:
-                ex = Extension()
-                consumed = ex.unmarshal(msg, start=tracker+subtracker)
-                subtracker += consumed
-                self.extensions.append(ex)
-
-            return True
-        except:
-            return False
+        extensionFieldLength = int.from_bytes(msg[tracker:tracker+2], 'big')
+        tracker += 2
+        subtracker = 0
+        self.extensions = []
+        while subtracker < extensionFieldLength:
+            ex = Extension()
+            consumed = ex.unmarshal(msg, start=tracker+subtracker)
+            subtracker += consumed
+            self.extensions.append(ex)
 
 class EncryptedExtensions:
     handshake = Handshake(HandshakeType.encrypted_extensions, -1)
@@ -393,21 +415,18 @@ class EncryptedExtensions:
         prefix = self.handshake.marshal()
         return prefix + ret
     def unmarshal(self, msg: bytes):
-        res = self.handshake.unmarshal(msg)
-        if not res: return False
-        if not self.handshake.msg_type == HandshakeType.encrypted_extensions: return False
-        try:
-            extensionFieldLength = int.from_bytes(msg[4:6], 'big')
-            subtracker = 0
-            self.extensions = []
-            while subtracker < extensionFieldLength:
-                ex = Extension()
-                consumed = ex.unmarshal(msg, start=6+subtracker)
-                subtracker += consumed
-                self.extensions.append(ex)
-            return True
-        except:
-            return False
+        self.handshake.unmarshal(msg)
+        if self.handshake.msg_type != HandshakeType.encrypted_extensions:
+            raise ssl.SSLError(ssl.AlertLevel.FATAL, ssl.AlertType.UnexpectedMsg,
+                               "Recieved unexpected message type (should have been encrypted_extensions)")
+        extensionFieldLength = int.from_bytes(msg[4:6], 'big')
+        subtracker = 0
+        self.extensions = []
+        while subtracker < extensionFieldLength:
+            ex = Extension()
+            consumed = ex.unmarshal(msg, start=6+subtracker)
+            subtracker += consumed
+            self.extensions.append(ex)
 
 class Certificate:
     handshake = Handshake(HandshakeType.certificate, -1)

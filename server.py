@@ -145,22 +145,23 @@ class Handler(ssv.StreamRequestHandler):
             "We don't know what to do with non-application messages at this stage.")
 
     def handle(self):
-        self.session = server_handle_handshake(self.rfile, self.wfile)
-        if self.session == None:
-            print("[FATAL] Aborted due to failed handshake.")
-            return
-        while not self.close:
-            try:
+        try:
+            self.session = server_handle_handshake(self.rfile, self.wfile)
+            if self.session is None:
+                raise ssl.SSLError(
+                    ssl.AlertLevel.FATAL, ssl.AlertType.HandshakeFailure, "Handshake was unsuccessful.")
+            while not self.close:
                 self.message_handler()
-            except ssl.SSLError as e:
-                self.wfile.write(
-                    self.session.build_alert_record(e.level, e.atype))
-                if e.level is ssl.AlertLevel.FATAL:
-                    return
-            except:
-                self.wfile.write(self.session.build_alert_record(
-                    ssl.AlertLevel.FATAL, ssl.AlertType.InternalError))
+        except ssl.SSLError as e:
+            print(f"[{e.level.name}] (ssl): {e.atype.name} {e.args}")
+            self.wfile.write(self.session.build_alert_record(e.level, e.atype))
+            if e.level is ssl.AlertLevel.FATAL:
                 return
+        except BaseException as e:
+            print(f"[FATAL] (unknown): {e.args}")
+            self.wfile.write(self.session.build_alert_record(
+                ssl.AlertLevel.FATAL, ssl.AlertType.InternalError))
+            return
 
     def finish(self):
         super().finish()
