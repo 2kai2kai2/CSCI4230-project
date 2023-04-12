@@ -5,6 +5,9 @@ from io import BytesIO
 from os import urandom
 
 import shared.rpi_hash as hash
+import cpp
+
+IV = bytes(16)
 
 def server_handle_handshake(rfile: BytesIO, wfile: BytesIO) -> ssl.Session:
     # We first wait for the ClientHello message
@@ -47,6 +50,7 @@ def server_handle_handshake(rfile: BytesIO, wfile: BytesIO) -> ssl.Session:
 
         exchanged = int.from_bytes(key_share_dh_y_value.key_exchange)
         key = generator.compute_secret(exchanged, secret_value)
+        key = (key % 0xffffffff).to_bytes(32)
 
         # Response with a corresponding ServerHello message
         response = handshake.ServerHello()
@@ -58,9 +62,9 @@ def server_handle_handshake(rfile: BytesIO, wfile: BytesIO) -> ssl.Session:
         return None
 
     return ssl.Session(
-        lambda x: x,
-        lambda x: x,
-        1,
+        lambda x: cpp.encrypt_cbc(x, key, IV),
+        lambda x: cpp.decrypt_cbc(x, key, IV),
+        16,
         hash.SHA384,
         48
     )
@@ -114,14 +118,15 @@ def client_handle_handshake(rfile: BytesIO, wfile: BytesIO) -> ssl.Session:
     key_share_dh_y_value.fromData(key_share.extension_data)
     exchanged = int.from_bytes(key_share_dh_y_value.key_exchange)
     key = generator.compute_secret(exchanged, secret_value)
+    key = (key % 0xffffffff).to_bytes(32)
 
     import shared.rpi_hash as hash
 
     # session: ssl.Session = ...  # placeholder
     session = ssl.Session(
-        lambda x: x,
-        lambda x: x,
-        1,
+        lambda x: cpp.encrypt_cbc(x, key, IV),
+        lambda x: cpp.decrypt_cbc(x, key, IV),
+        16,
         hash.SHA384,
         48
     )
