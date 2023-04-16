@@ -1,5 +1,5 @@
 
-from ssl_handshake import *
+from tls_handshake import *
 
 def fixedRandom(bits):
     b = bytes(17)
