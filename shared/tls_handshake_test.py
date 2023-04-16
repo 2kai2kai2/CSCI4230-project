@@ -65,3 +65,14 @@ if __name__ == "__main__":
     ee2.unmarshal(ee.marshal())
     assert(ee2.marshal() == ee.marshal())
 
+    # ------------------------------
+    # Small example key
+    c_pub = 65537
+    c_pr = 0x6a94682a9c16679fdaf04fdf6d9a618d86fea7328c11210b727514dfcc577251
+    c_p = 0x00d573da589539e04ca947cffbccd89be5
+    c_q = 0x00d3ba475c16b994601bed32d8bdd61b17
+
+    cert = Certificate()
+    cert.populate(c_pub)
+    assert(cert.validate(c_pr, c_p, c_q))
+

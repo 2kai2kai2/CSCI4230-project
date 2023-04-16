@@ -8,6 +8,7 @@ from os import urandom
 from enum import IntEnum
 from typing import Union, Callable
 import shared.rpi_ssl as ssl
+# import rpi_ssl as ssl
 
 # We define our own cipher with a unique custom value
 TLS_AES_128_SHA1 = 0x13A1
@@ -123,6 +124,7 @@ class ExtensionType(IntEnum):
 class SignatureAlgorithms(IntEnum):
     # A full list of signature algorithms is in RFC 8446, Section 4.2.3:
     # https://datatracker.ietf.org/doc/html/rfc8446#section-4.2.3
+    rsa_pkcs1_sha384 = 0x0501
     rsa_pkcs1_sha1 = 0x0201
 
 class SupportedGroups(IntEnum):
@@ -184,6 +186,11 @@ def MakeExtension(et, ed) -> Extension:
     ex.populate(et, ed)
     return ex
 
+def FindExtension(extensions: list[Extension], desired: ExtensionType) -> Union[Extension, None]:
+    for e in extensions:
+        if e.extension_type == desired: return e
+    return None
+
 class ClientHello:
     """
     See here: https://datatracker.ietf.org/doc/html/rfc8446#section-4.1.2
@@ -201,7 +208,7 @@ class ClientHello:
     extensions = [
         MakeExtension(ExtensionType.supported_versions, 0x0304.to_bytes(2, 'big')),
         MakeExtension(ExtensionType.signature_algorithms, marshal_list_of_ints([
-            SignatureAlgorithms.rsa_pkcs1_sha1
+            SignatureAlgorithms.rsa_pkcs1_sha384
         ], 2, 2)),
         #Certificate Authorities is not required
         # Our client will send it's own key_share material to save on an extra round trip with 
@@ -295,6 +302,7 @@ class ClientHello:
             consumed = ex.unmarshal(msg, start=tracker+subtracker)
             subtracker += consumed
             self.extensions.append(ex)
+        return True
 
 class ServerHello:
     legacy_version = 0x0303
@@ -399,6 +407,7 @@ class ServerHello:
             consumed = ex.unmarshal(msg, start=tracker+subtracker)
             subtracker += consumed
             self.extensions.append(ex)
+        return True
 
 class EncryptedExtensions:
     handshake = Handshake(HandshakeType.encrypted_extensions, -1)
@@ -432,6 +441,9 @@ class Certificate:
     handshake = Handshake(HandshakeType.certificate, -1)
     def populate(self, public_key: bytes):
         self.public_key = public_key
+    def validate(self, private_key: int, p: int, q: int):
+        lambdaN = (p-1) * (q-1)
+        return 1 == (self.public_key * private_key) % lambdaN
     # def marshal(self) -> bytes:
 
 
