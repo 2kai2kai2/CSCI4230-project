@@ -19,8 +19,7 @@ def marshal_list_of_bytes(arr: list[bytes], elementLength: int = 1, maxLengthInB
     # Encode every object sequenially
     for el in arr:
         if len(el) != elementLength:
-            raise ssl.SSLError(ssl.AlertLevel.FATAL, ssl.AlertType.InternalError,
-                               "Invalid item size while marshalling bytes.")
+            raise ssl.SSLError(ssl.AlertType.InternalError, "Invalid item size while marshalling bytes.")
         ret += el
     return ret
 
@@ -62,8 +61,7 @@ class Handshake:
     def __init__(self, msg_type: int = -1, msg_length: int = 0):
         # Must be a supported handshake type
         if msg_type not in HandshakeType._value2member_map_:
-            raise ssl.SSLError(ssl.AlertLevel.FATAL, ssl.AlertType.InternalError,
-                               "Unsupported handshake type.")
+            raise ssl.SSLError(ssl.AlertType.InternalError, "Unsupported handshake type.")
         self.msg_type = msg_type
         self.msg_length = msg_length
 
@@ -85,7 +83,7 @@ class Handshake:
         """
         # Message needs to fit in a uint-24
         if self.msg_length <= 0 or self.msg_length >= 2**24:
-            raise ssl.SSLError(ssl.AlertLevel.FATAL, ssl.AlertType.RecordOverflow, "Handshake message must fit in a uint-24.")
+            raise ssl.SSLError(ssl.AlertType.RecordOverflow, "Handshake message must fit in a uint-24.")
         ret = self.msg_type.to_bytes(1, 'big')
         ret += self.msg_length.to_bytes(3, 'big')
         return ret
@@ -100,7 +98,7 @@ class Handshake:
            - `SSLError (FATAL, DecodeError)` if packet has insufficient length.
         """
         if len(data) < 4:
-            raise ssl.SSLError(ssl.AlertLevel.FATAL, ssl.AlertType.DecodeError, "Failed to unmarshal packet" + data.hex())
+            raise ssl.SSLError(ssl.AlertType.DecodeError, "Failed to unmarshal packet" + data.hex())
         # First byte should be the message type
         self.msg_type = data[0]
         # Then we have the length in the next three
@@ -137,15 +135,15 @@ class KeyShareEntry:
     def __init__(self, group: int = SupportedGroups.NONE, key_exchange: bytes = bytes(0)):
         # Make sure we were given a valid group
         if group not in SupportedGroups._value2member_map_:
-            raise ssl.SSLError(ssl.AlertLevel.FATAL, ssl.AlertType.InternalError, "Invalid group type.")
+            raise ssl.SSLError(ssl.AlertType.InternalError, "Invalid group type.")
         self.group = group
         self.key_exchange = key_exchange
 
     def toData(self) -> bytes:
         if self.group == SupportedGroups.NONE:
-            raise ssl.SSLError(ssl.AlertLevel.FATAL, ssl.AlertType.InternalError, "Group type cannot be NONE.")
+            raise ssl.SSLError(ssl.AlertType.InternalError, "Group type cannot be NONE.")
         if len(self.key_exchange) == 0:
-            raise ssl.SSLError(ssl.AlertLevel.FATAL, ssl.AlertType.InternalError, "key_exchange cannot be empty.")
+            raise ssl.SSLError(ssl.AlertType.InternalError, "key_exchange cannot be empty.")
         return self.group.to_bytes(2, 'big') + len(self.key_exchange).to_bytes(2, 'big') + self.key_exchange
 
     def fromData(self, data) -> int:
@@ -273,7 +271,7 @@ class ClientHello:
         # First we have the prefix that we can strip away
         self.handshake.unmarshal(msg)
         if self.handshake.msg_type != HandshakeType.client_hello:
-            raise ssl.SSLError(ssl.AlertLevel.FATAL, ssl.AlertType.UnexpectedMsg,
+            raise ssl.SSLError(ssl.AlertType.UnexpectedMsg,
                                "Recieved unexpected message type (should have been client_hello)")
 
         tracker = 4
@@ -376,7 +374,7 @@ class ServerHello:
         # First we have the prefix that we can strip away
         self.handshake.unmarshal(msg)
         if self.handshake.msg_type != HandshakeType.server_hello:
-            raise ssl.SSLError(ssl.AlertLevel.FATAL, ssl.AlertType.UnexpectedMsg,
+            raise ssl.SSLError(ssl.AlertType.UnexpectedMsg,
                                "Recieved unexpected message type (should have been server_hello)")
 
         tracker = 4
@@ -395,8 +393,7 @@ class ServerHello:
         legacy_compression_method = int.from_bytes(msg[tracker:tracker+1], 'big')
         tracker += 1
         if legacy_compression_method != 0:
-            raise ssl.SSLError(ssl.AlertLevel.FATAL, ssl.AlertType.DecodeError,
-                               "We do not support compression.")
+            raise ssl.SSLError(ssl.AlertType.DecodeError, "We do not support compression.")
 
         extensionFieldLength = int.from_bytes(msg[tracker:tracker+2], 'big')
         tracker += 2
@@ -426,7 +423,7 @@ class EncryptedExtensions:
     def unmarshal(self, msg: bytes):
         self.handshake.unmarshal(msg)
         if self.handshake.msg_type != HandshakeType.encrypted_extensions:
-            raise ssl.SSLError(ssl.AlertLevel.FATAL, ssl.AlertType.UnexpectedMsg,
+            raise ssl.SSLError(ssl.AlertType.UnexpectedMsg,
                                "Recieved unexpected message type (should have been encrypted_extensions)")
         extensionFieldLength = int.from_bytes(msg[4:6], 'big')
         subtracker = 0

@@ -148,17 +148,17 @@ class Handler(ssv.StreamRequestHandler):
         try:
             self.session = server_handle_handshake(self.rfile, self.wfile)
             if self.session is None:
-                raise ssl.SSLError(
-                    ssl.AlertLevel.FATAL, ssl.AlertType.HandshakeFailure, "Handshake was unsuccessful.")
+                raise ssl.SSLError(ssl.AlertType.HandshakeFailure,
+                                   "Handshake was unsuccessful.")
             while not self.close:
                 self.message_handler()
         except ssl.SSLError as e:
-            print(f"[{e.level.name}] (ssl): {e.atype.name} {e.args}")
-            self.wfile.write(self.session.build_alert_record(e.level, e.atype))
-            if e.level is ssl.AlertLevel.FATAL:
-                return
+            print(f"[FATAL] (ssl): {e.atype.name} {e.args}")
+            self.wfile.write(self.session.build_alert_record(
+                ssl.AlertLevel.FATAL, e.atype))
+            return
         except BaseException as e:
-            print(f"[FATAL] (unknown): {e.args}")
+            print(f"[FATAL] (unknown {type(e)}): {e.args}")
             self.wfile.write(self.session.build_alert_record(
                 ssl.AlertLevel.FATAL, ssl.AlertType.InternalError))
             return

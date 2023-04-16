@@ -25,8 +25,7 @@ def server_handle_handshake(rfile: BytesIO, wfile: BytesIO) -> ssl.Session:
     header = rfile.read(4)
     hs.unmarshal(header)
     if hs.msg_type != handshake.HandshakeType.client_hello:
-        raise ssl.SSLError(ssl.AlertLevel.FATAL, ssl.AlertType.UnexpectedMsg,
-                           "Recieved unexpected message type (should have been client_hello)")
+        raise ssl.SSLError(ssl.AlertType.UnexpectedMsg, "Recieved unexpected message type (should have been client_hello)")
     client_hello = handshake.ClientHello()
     rest = rfile.read(hs.msg_length)
     data = header + rest
@@ -39,16 +38,14 @@ def server_handle_handshake(rfile: BytesIO, wfile: BytesIO) -> ssl.Session:
             key_share = e
             break
     if key_share == None:
-        raise ssl.SSLError(
-            ssl.AlertLevel.FATAL, ssl.AlertType.HandshakeFailure, "Failed to find key_share extension.")
+        raise ssl.SSLError(ssl.AlertType.HandshakeFailure, "Failed to find key_share extension.")
     key_share_dh_y_value = handshake.KeyShareEntry()
     key_share_dh_y_value.fromData(key_share.extension_data)
 
     if key_share_dh_y_value.group == handshake.SupportedGroups.ffdhe8192:
         generator = keygen.ffdhe8192
     else:
-        raise ssl.SSLError(ssl.AlertLevel.FATAL, ssl.AlertType.HandshakeFailure,
-                           "Unsupported supported group sent by client.")
+        raise ssl.SSLError(ssl.AlertType.HandshakeFailure, "Unsupported supported group sent by client.")
 
     # Need to decide on a secret
     secret_value = int.from_bytes(urandom(generator.len_bytes), 'big')
@@ -113,8 +110,7 @@ def client_handle_handshake(rfile: BytesIO, wfile: BytesIO) -> ssl.Session:
     hs.unmarshal(header)
     # Figure out what kind of packet we've received
     if hs.msg_type != handshake.HandshakeType.server_hello:
-        raise ssl.SSLError(ssl.AlertLevel.FATAL, ssl.AlertType.UnexpectedMsg,
-                           "Recieved unexpected message type (should have been server_hello)")
+        raise ssl.SSLError(ssl.AlertType.UnexpectedMsg, "Recieved unexpected message type (should have been server_hello)")
     # We got back a server hello
     rest = rfile.read(hs.msg_length)
     packet = header + rest
@@ -130,8 +126,7 @@ def client_handle_handshake(rfile: BytesIO, wfile: BytesIO) -> ssl.Session:
             key_share = e
             break
     if key_share == None:
-        raise ssl.SSLError(ssl.AlertLevel.FATAL, ssl.AlertType.HandshakeFailure,
-                           "Failed to find key_share extension that was returned.")
+        raise ssl.SSLError(ssl.AlertType.HandshakeFailure, "Failed to find key_share extension that was returned.")
     key_share_dh_y_value = handshake.KeyShareEntry()
     key_share_dh_y_value.fromData(key_share.extension_data)
     exchanged = int.from_bytes(key_share_dh_y_value.key_exchange, 'big')

@@ -88,3 +88,5 @@ class AppError(IntEnum):
     ATTEMPTS_EXCEEDED = 0x02
     """When login attempts are exceeded."""
 
+    #ACCOUNT_IN_USE = 0x03
+    #"""When an account is currently in use by another client."""

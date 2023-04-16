@@ -11,6 +11,9 @@ class ContentType(IntEnum):
 
 
 class AlertLevel(IntEnum):
+    """
+    Note that in TLS 1.3, all error-type alerts should be FATAL.
+    """
     WARNING = 1
     FATAL = 2
 
@@ -38,10 +41,9 @@ class AlertType(IntEnum):
 
 
 class SSLError(Exception):
-    def __init__(self, level: AlertLevel, atype: AlertType, msg=None):
-        self.level = level
+    def __init__(self, atype: AlertType, msg=None):
         self.atype = atype
-        super().__init__(f"{level} SSL alert: {atype}", msg)
+        super().__init__(f"FATAL TLS/SSL error: {atype}", msg)
 
 
 def build_record(content_type: ContentType, body: bytes) -> bytes:
@@ -182,8 +184,7 @@ class Session:
         mac_value = plaintext[-self.mac_length:]
         if mac_value != self.MAC(self.seq.to_bytes(8, 'big') + message):
             self.seq += 1
-            raise SSLError(AlertLevel.FATAL,
-                           AlertType.BadMAC, f"seq{self.seq}")
+            raise SSLError(AlertType.BadMAC, f"seq{self.seq}")
         self.seq += 1
 
         return message
