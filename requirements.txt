@@ -1,3 +1,4 @@
 ./lib
 pybind11==2.10.3
 get-key==1.60.0
+openssh-key-parser==0.0.7
