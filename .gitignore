@@ -11,3 +11,7 @@
 **/*.log
 **/*.out
 **/*.synctex.gz
+
+# Secrets!
+secrets/client.py
+secrets/server.py
