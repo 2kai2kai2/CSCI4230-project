@@ -30,12 +30,12 @@ def gen_keys(name):
     public_key = int.from_bytes(b64decode(data), 'big')
 
     # Store these keys in an appropriate secret file
-    with open("./secrets/{}.py".format(name), "w+") as f:
+    with open("./my_secrets/{}.py".format(name), "w+") as f:
         f.write("PRIVATE_KEY = ")
         f.write(str(private_key))
         f.write("\n")
 
-    with open("./secrets/{}_public.py".format(name), "w+") as f:
+    with open("./my_secrets/{}_public.py".format(name), "w+") as f:
         f.write("PUBLIC_KEY = ")
         f.write(str(public_key))
         f.write("\n")

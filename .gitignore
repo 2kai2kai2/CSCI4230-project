@@ -14,6 +14,6 @@
 **/*.synctex.gz
 
 # Secrets!
-secrets/client.py
-secrets/server.py
+my_secrets/client.py
+my_secrets/server.py
 
