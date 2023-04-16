@@ -8,17 +8,6 @@ from sys import exit
 from shared.port import PORT
 
 
-class ClientConnection:
-    def begin_ssl(self):
-        """
-        Kicks off the SSL from the client end. This system is inspired by 
-        SSL 1.3 as seen in (RFC 8446)[https://datatracker.ietf.org/doc/html/rfc8446#section-2]
-        but does not implement the full suite of features for our use-case.
-        """
-
-        # First message that must be sent is the ClientHello message
-
-
 conn = socket.create_connection(("localhost", PORT))
 conn.setblocking(True)
 rfile = conn.makefile('rb', buffering=0)
