@@ -1,4 +1,3 @@
-
 # urandom generates cryptographically-secure random numbers as per
 # https://docs.python.org/3/library/os.html 
 # "This function returns random bytes from an OS-specific randomness source. 
@@ -8,10 +7,12 @@ from os import urandom
 from enum import IntEnum
 from typing import Union, Callable
 import shared.rpi_ssl as ssl
+
 # import rpi_ssl as ssl
 
 # We define our own cipher with a unique custom value
 TLS_AES_128_SHA1 = 0x13A1
+
 
 def marshal_list_of_bytes(arr: list[bytes], elementLength: int = 1, maxLengthInBytes: int = 2) -> bytes:
     # Encode the length of objects
@@ -23,6 +24,7 @@ def marshal_list_of_bytes(arr: list[bytes], elementLength: int = 1, maxLengthInB
         ret += el
     return ret
 
+
 def marshal_list_of_ints(arr: list[int], elementLength: int = 1, maxLengthInBytes: int = 2) -> bytes:
     # Encode the length of objects
     ret = (len(arr) * elementLength).to_bytes(maxLengthInBytes, 'big')
@@ -30,6 +32,7 @@ def marshal_list_of_ints(arr: list[int], elementLength: int = 1, maxLengthInByte
     for el in arr:
         ret += el.to_bytes(elementLength, "big")
     return ret
+
 
 def marshal_list_of_objects(arr: list[int], elementLength: int = 1, maxLengthInBytes: int = 2) -> bytes:
     # Encode the length of objects
@@ -39,13 +42,15 @@ def marshal_list_of_objects(arr: list[int], elementLength: int = 1, maxLengthInB
         ret += el.to_bytes(elementLength, "big")
     return ret
 
-def unmarshal_list(msg: bytes, elementLength: int = 1, lengthFieldSize: int = 2, start: int = 0) -> Union[list,int]:
-    count = int.from_bytes(msg[start:start+lengthFieldSize], 'big')
+
+def unmarshal_list(msg: bytes, elementLength: int = 1, lengthFieldSize: int = 2, start: int = 0) -> Union[list, int]:
+    count = int.from_bytes(msg[start:start + lengthFieldSize], 'big')
     ret = []
-    for i in range(count//elementLength):
-        s = start+lengthFieldSize+i*elementLength
-        ret.append(msg[s:s+elementLength])
+    for i in range(count // elementLength):
+        s = start + lengthFieldSize + i * elementLength
+        ret.append(msg[s:s + elementLength])
     return ret, lengthFieldSize + count
+
 
 class HandshakeType(IntEnum):
     # https://datatracker.ietf.org/doc/html/rfc8446#section-4
@@ -56,6 +61,7 @@ class HandshakeType(IntEnum):
     certificate = 11
     certificate_verify = 15
     finished = 20
+
 
 class Handshake:
     def __init__(self, msg_type: int = -1, msg_length: int = 0):
@@ -82,7 +88,7 @@ class Handshake:
            - `SSLError (FATAL, RecordOverflow)` if message cannot fit in a uint-24.
         """
         # Message needs to fit in a uint-24
-        if self.msg_length <= 0 or self.msg_length >= 2**24:
+        if self.msg_length <= 0 or self.msg_length >= 2 ** 24:
             raise ssl.SSLError(ssl.AlertType.RecordOverflow, "Handshake message must fit in a uint-24.")
         ret = self.msg_type.to_bytes(1, 'big')
         ret += self.msg_length.to_bytes(3, 'big')
@@ -104,10 +110,12 @@ class Handshake:
         # Then we have the length in the next three
         self.msg_length = int.from_bytes(data[1:4], 'big')
 
+
 class Alert:
     def populate(self, alert_level: ssl.AlertLevel, alert_description: ssl.AlertType):
         self.alert_level = alert_level
         self.alert_description = alert_description
+
 
 class ExtensionType(IntEnum):
     # A full list of extensions can be found in RFC 8446, Section 4.2:
@@ -119,17 +127,20 @@ class ExtensionType(IntEnum):
     server_name = 0
     server_certificate_type = 20
 
+
 class SignatureAlgorithms(IntEnum):
     # A full list of signature algorithms is in RFC 8446, Section 4.2.3:
     # https://datatracker.ietf.org/doc/html/rfc8446#section-4.2.3
     rsa_pkcs1_sha384 = 0x0501
     rsa_pkcs1_sha1 = 0x0201
 
+
 class SupportedGroups(IntEnum):
     # https://datatracker.ietf.org/doc/html/rfc8446#section-4.2.7
     ffdhe2048 = 0x0100
     ffdhe8192 = 0x0104
     NONE = -1
+
 
 class KeyShareEntry:
     def __init__(self, group: int = SupportedGroups.NONE, key_exchange: bytes = bytes(0)):
@@ -149,16 +160,19 @@ class KeyShareEntry:
     def fromData(self, data) -> int:
         self.group = int.from_bytes(data[:2], 'big')
         key_exchange_len = int.from_bytes(data[2:4], 'big')
-        self.key_exchange = data[4:4+key_exchange_len]
+        self.key_exchange = data[4:4 + key_exchange_len]
         return 4 + key_exchange_len
+
 
 class KeyShare_ClientShares:
     def __init__(self, entries: list[KeyShareEntry]):
-        self.entries=entries
+        self.entries = entries
+
 
 class PskKeyExchangeMode(IntEnum):
     psk_ke = 0
     psk_dhe_ke = 1
+
 
 class Extension:
     def populate(self, extension_type: int, extension_data: bytes):
@@ -173,21 +187,24 @@ class Extension:
         return ret
 
     def unmarshal(self, data: bytes, start: int) -> int:
-        self.extension_type = int.from_bytes(data[start:start+2], 'big')
+        self.extension_type = int.from_bytes(data[start:start + 2], 'big')
         # include the length of the data
-        length = int.from_bytes(data[start+2:start+4], 'big')
-        self.extension_data = data[start+4:start+length+4]
+        length = int.from_bytes(data[start + 2:start + 4], 'big')
+        self.extension_data = data[start + 4:start + length + 4]
         return length + 4
+
 
 def MakeExtension(et, ed) -> Extension:
     ex = Extension()
     ex.populate(et, ed)
     return ex
 
+
 def FindExtension(extensions: list[Extension], desired: ExtensionType) -> Union[Extension, None]:
     for e in extensions:
         if e.extension_type == desired: return e
     return None
+
 
 class ClientHello:
     """
@@ -208,13 +225,13 @@ class ClientHello:
         MakeExtension(ExtensionType.signature_algorithms, marshal_list_of_ints([
             SignatureAlgorithms.rsa_pkcs1_sha384
         ], 2, 2)),
-        #Certificate Authorities is not required
+        # Certificate Authorities is not required
         # Our client will send it's own key_share material to save on an extra round trip with 
         # the server. The server will inspect this value and ensure it is satisfied with the choice.
         # todo:: add server-side checking on key_share information
         MakeExtension(ExtensionType.supported_groups, marshal_list_of_ints([
             SupportedGroups.ffdhe2048
-        ], 2, 2)), # p = 2048
+        ], 2, 2)),  # p = 2048
         # Our client only enables authenticating a server with raw public keys
         # MakeExtension(ExtensionType.server_certificate_type, )
     ]
@@ -276,11 +293,11 @@ class ClientHello:
 
         tracker = 4
         # Next 2 bytes should be legacy version information 
-        self.legacy_version = int.from_bytes(msg[tracker:tracker+2], 'big')
+        self.legacy_version = int.from_bytes(msg[tracker:tracker + 2], 'big')
         tracker += 2
-        
+
         # Next 32 have the random
-        self.random = msg[tracker:tracker+32]
+        self.random = msg[tracker:tracker + 32]
         tracker += 32
 
         self.legacy_session_id, advance = unmarshal_list(msg, elementLength=1, lengthFieldSize=1, start=tracker)
@@ -288,19 +305,21 @@ class ClientHello:
         cs, advance = unmarshal_list(msg, elementLength=2, lengthFieldSize=2, start=tracker)
         self.cipher_suites = [int.from_bytes(x, 'big') for x in cs]
         tracker += advance
-        self.legacy_compression_methods, advance = unmarshal_list(msg, elementLength=1, lengthFieldSize=1, start=tracker)
+        self.legacy_compression_methods, advance = unmarshal_list(msg, elementLength=1, lengthFieldSize=1,
+                                                                  start=tracker)
         tracker += advance
 
-        extensionFieldLength = int.from_bytes(msg[tracker:tracker+2], 'big')
+        extensionFieldLength = int.from_bytes(msg[tracker:tracker + 2], 'big')
         tracker += 2
         subtracker = 0
         self.extensions = []
         while subtracker < extensionFieldLength:
             ex = Extension()
-            consumed = ex.unmarshal(msg, start=tracker+subtracker)
+            consumed = ex.unmarshal(msg, start=tracker + subtracker)
             subtracker += consumed
             self.extensions.append(ex)
         return True
+
 
 class ServerHello:
     legacy_version = 0x0303
@@ -316,7 +335,8 @@ class ServerHello:
 
     RETRY_REQUEST = 0xCF21AD74E59A6111BE1D8C021E65B891C2A211167ABB8C5E079E09E2C8A8339C.to_bytes(32, 'big')
 
-    def populate(self, correspondingHello: ClientHello, selectedCipherSuite, DHKeyShare: KeyShareEntry, randomFunc: Callable[[int], bytes] = urandom):
+    def populate(self, correspondingHello: ClientHello, selectedCipherSuite, DHKeyShare: KeyShareEntry,
+                 randomFunc: Callable[[int], bytes] = urandom):
         # Create 32 random bytes for the 'random' field (used as a Nonce)
         self.random = randomFunc(32)
         self.legacy_session_id = correspondingHello.legacy_session_id
@@ -379,38 +399,41 @@ class ServerHello:
 
         tracker = 4
         # Next 2 bytes should be legacy version information 
-        self.legacy_version = int.from_bytes(msg[tracker:tracker+2], 'big')
+        self.legacy_version = int.from_bytes(msg[tracker:tracker + 2], 'big')
         tracker += 2
-        
+
         # Next 32 have the random
-        self.random = msg[tracker:tracker+32]
+        self.random = msg[tracker:tracker + 32]
         tracker += 32
 
         self.legacy_session_id, advance = unmarshal_list(msg, elementLength=1, lengthFieldSize=1, start=tracker)
         tracker += advance
-        self.cipher_suite = int.from_bytes(msg[tracker:tracker+2], 'big')
+        self.cipher_suite = int.from_bytes(msg[tracker:tracker + 2], 'big')
         tracker += 2
-        legacy_compression_method = int.from_bytes(msg[tracker:tracker+1], 'big')
+        legacy_compression_method = int.from_bytes(msg[tracker:tracker + 1], 'big')
         tracker += 1
         if legacy_compression_method != 0:
             raise ssl.SSLError(ssl.AlertType.DecodeError, "We do not support compression.")
 
-        extensionFieldLength = int.from_bytes(msg[tracker:tracker+2], 'big')
+        extensionFieldLength = int.from_bytes(msg[tracker:tracker + 2], 'big')
         tracker += 2
         subtracker = 0
         self.extensions = []
         while subtracker < extensionFieldLength:
             ex = Extension()
-            consumed = ex.unmarshal(msg, start=tracker+subtracker)
+            consumed = ex.unmarshal(msg, start=tracker + subtracker)
             subtracker += consumed
             self.extensions.append(ex)
         return True
 
+
 class EncryptedExtensions:
     handshake = Handshake(HandshakeType.encrypted_extensions, -1)
     extensions = []
+
     def populate(self, extensions: list[Extension]):
         self.extensions = extensions
+
     def marshal(self) -> bytes:
         # Encode the extensions
         encoded_extensions = bytes(0)
@@ -420,6 +443,7 @@ class EncryptedExtensions:
         self.handshake.msg_length = len(ret)
         prefix = self.handshake.marshal()
         return prefix + ret
+
     def unmarshal(self, msg: bytes):
         self.handshake.unmarshal(msg)
         if self.handshake.msg_type != HandshakeType.encrypted_extensions:
@@ -430,18 +454,31 @@ class EncryptedExtensions:
         self.extensions = []
         while subtracker < extensionFieldLength:
             ex = Extension()
-            consumed = ex.unmarshal(msg, start=6+subtracker)
+            consumed = ex.unmarshal(msg, start=6 + subtracker)
             subtracker += consumed
             self.extensions.append(ex)
 
+
 class Certificate:
+    def __init__(self):
+        self.certificate_request_context = None
+        self.certificate_list = None
+
+    def populate(self, context: bytes, entries: list[bytes]):
+        self.certificate_request_context = context
+        self.certificate_list = entries
+
+
+class CertificateEntry:
     handshake = Handshake(HandshakeType.certificate, -1)
+
+    def __init__(self):
+        self.public_key = None
+
     def populate(self, public_key: bytes):
         self.public_key = public_key
+
     def validate(self, private_key: int, p: int, q: int):
-        lambdaN = (p-1) * (q-1)
+        lambdaN = (p - 1) * (q - 1)
         return 1 == (self.public_key * private_key) % lambdaN
     # def marshal(self) -> bytes:
-
-
-

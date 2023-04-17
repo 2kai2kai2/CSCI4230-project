@@ -5,7 +5,7 @@ from io import BytesIO
 from os import urandom
 
 import shared.rpi_hash as rpi_hash
-import cpp
+# import cpp
 
 
 def server_handle_handshake(rfile: BytesIO, wfile: BytesIO) -> ssl.Session:
