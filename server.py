@@ -8,14 +8,12 @@ from shared.handshake_handler import server_handle_handshake
 from shared.port import PORT
 
 
-from my_secrets.client_public import PUBLIC_KEY as client_pub
-from my_secrets.server_public import PUBLIC_KEY as server_pub
-from my_secrets.server import PRIVATE_KEY as server_pr
+import my_secrets.server as secrets
 
 INFO = {
-    "client_public": client_pub,
-    "server_public": server_pub,
-    "server_private": server_pr,
+    "server_public": secrets.PUBLIC_KEY,
+    "server_private": secrets.PRIVATE_KEY,
+    "server_modulus": secrets.P * secrets.Q
 }
 
 class Handler(ssv.StreamRequestHandler):
@@ -128,17 +126,15 @@ class Handler(ssv.StreamRequestHandler):
             if content_type is ssl.ContentType.Application:
                 app_content = self.session.open_encrypted_record(tls_content)
                 print(
-                    f"[LOG] {self.client_address}: Auth Recieved (seq {self.session.seq}): {app_content.hex(';')}")
+                    f"[LOG] {self.client_address}: Auth Recieved: {app_content.hex(';')}")
                 response = self.handle_account_auth(app_content)
                 self.user_attempts += 1
                 if self.user_attempts >= 8 and self.account is None:
-                    print(len(str(self.client_address))*' ' +
-                          "        Session attempts exceeded")
+                    print("      Session attempts exceeded")
                     response = bytes(
                         [MsgType.ERROR, AppError.ATTEMPTS_EXCEEDED])
                     self.close = True
-                print(len(str(self.client_address))*' ' +
-                      f"        Auth Responded (seq {self.session.seq}): " + response.hex(";"))
+                print("      Auth Responded: " + response.hex(";"))
                 self.wfile.write(self.session.build_app_record(response))
                 return
             raise NotImplementedError(
@@ -148,21 +144,11 @@ class Handler(ssv.StreamRequestHandler):
         if content_type is ssl.ContentType.Application:
             app_content = self.session.open_encrypted_record(tls_content)
             print(
-                f"[LOG] {self.client_address}: App Recieved (seq {self.session.seq-1}): {app_content.hex(';')}")
+                f"[LOG] {self.client_address}: App Recieved: {app_content.hex(';')}")
             response = self.handle_routine(app_content)
-            print(len(str(self.client_address))*' ' +
-                  f"        App Responded (seq {self.session.seq}):" + response.hex(";"))
+            print("      App Responded: " + response.hex(";"))
             self.wfile.write(self.session.build_app_record(response))
             return
-        elif content_type is ssl.ContentType.Alert:
-            alevel, atype = self.session.open_alert_record(tls_content)
-            if atype == ssl.AlertType.CloseNotify:
-                print(
-                    f"[LOG] {self.client_address}: Received close_notify from client")
-                self.close = True
-                return
-            raise ssl.SSLError(atype)
-
         raise NotImplementedError(
             "We don't know what to do with non-application messages at this stage.")
 
@@ -174,29 +160,20 @@ class Handler(ssv.StreamRequestHandler):
                                    "Handshake was unsuccessful.")
             while not self.close:
                 self.message_handler()
-            # here self.close == True and no SSLError or other unexpected error has been thrown
-            if not self.wfile.closed:
-                self.wfile.write(self.session.build_alert_record(
-                    ssl.AlertLevel.FATAL, ssl.AlertType.CloseNotify))
-            print(
-                f"[LOG] {self.client_address} (ssl): SSL session closed gracefully")
         except ssl.SSLError as e:
-            print(
-                f"[FATAL] {self.client_address} (ssl): {e.atype.name} {e.args}")
+            print(f"[FATAL] (ssl): {e.atype.name} {e.args}")
             self.wfile.write(self.session.build_alert_record(
                 ssl.AlertLevel.FATAL, e.atype))
             return
         except BaseException as e:
-            print(
-                f"[FATAL] {self.client_address} (unknown {type(e)}): {e.args}")
+            print(f"[FATAL] (unknown {type(e)}): {e.args}")
             self.wfile.write(self.session.build_alert_record(
                 ssl.AlertLevel.FATAL, ssl.AlertType.InternalError))
             return
 
     def finish(self):
         super().finish()
-
-        print(f"[LOG] {self.client_address} (tcp): Connection closed")
+        print(f"[LOG] {self.client_address}: Session closed")
 
 
 with ssv.ThreadingTCPServer(("localhost", PORT), Handler) as server:

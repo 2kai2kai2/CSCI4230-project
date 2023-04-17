@@ -27,17 +27,15 @@ def fetch_record() -> tuple[ssl.ContentType, bytes]:
 
 # ==== Handshake Stage ====
 
-from my_secrets.client_public import PUBLIC_KEY as client_pub
-from my_secrets.client import PRIVATE_KEY as client_pr
-from my_secrets.server_public import PUBLIC_KEY as server_pub
+import my_secrets.client as secrets
 
-info = {
-    "client_public": client_pub,
-    "client_private": client_pr,
-    "server_public": server_pub,
+INFO = {
+    "client_public": secrets.PUBLIC_KEY,
+    "client_private": secrets.PRIVATE_KEY,
+    "client_modulus": secrets.P * secrets.Q
 }
 
-session: ssl.Session = client_handle_handshake(rfile, wfile, info)
+session: ssl.Session = client_handle_handshake(rfile, wfile, INFO)
 if session == None:
     exit(1)
 
@@ -250,7 +248,8 @@ def request_withdraw(amount: int) -> bool:
 
 try:
     while not account_auth:
-        card = input_card()
+        # card = input_card()
+        card = Card("0000000000000000", 666, 4, 2025, 6969)
         request = bytes([MsgType.ACCOUNT_AUTH]) + card.to_bytes()
         toSend = session.build_app_record(request)
         wfile.write(toSend)

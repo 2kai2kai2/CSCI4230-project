@@ -133,12 +133,14 @@ class SignatureScheme(IntEnum):
     # This replaces SignatureAlgorithms, which is the TLS 1.2 standard.
     # That being said, SignatureAlgorithms has the same information
     rsa_pkcs1_sha384 = 0x0501
+    rsa_pkcs1_sha256 = (0x0401)
 
 
 class SignatureAlgorithms(IntEnum):
     # A full list of signature algorithms is in RFC 8446, Section 4.2.3:
     # https://datatracker.ietf.org/doc/html/rfc8446#section-4.2.3
     rsa_pkcs1_sha384 = 0x0501
+    rsa_pkcs1_sha256 = (0x0401)
     rsa_pkcs1_sha1 = 0x0201
 
 
@@ -230,7 +232,8 @@ class ClientHello:
     extensions = [
         MakeExtension(ExtensionType.supported_versions, 0x0304.to_bytes(2, 'big')),
         MakeExtension(ExtensionType.signature_algorithms, marshal_list_of_ints([
-            SignatureAlgorithms.rsa_pkcs1_sha384
+            SignatureAlgorithms.rsa_pkcs1_sha384,
+            SignatureAlgorithms.rsa_pkcs1_sha256,
         ], 2, 2)),
         # Certificate Authorities is not required
         # Our client will send it's own key_share material to save on an extra round trip with 
@@ -471,6 +474,8 @@ class EncryptedExtensions:
 
 class Certificate:
     handshake = Handshake(HandshakeType.certificate, -1)
+    MODULUS_LEN = 300
+    PUB_KEY_LEN = 300
 
     def __init__(self):
         self.modulus = None
@@ -485,15 +490,16 @@ class Certificate:
         return 1 == (self.public_key * private_key) % lambdaN
 
     def marshal(self) -> bytes:
-        print((self.public_key.bit_length() + 7) // 8)
         ret = \
-            self.modulus.to_bytes(20, 'big') + \
-            self.public_key.to_bytes(20, 'big')
-        return ret
+            self.modulus.to_bytes(self.MODULUS_LEN, 'big') + \
+            self.public_key.to_bytes(self.PUB_KEY_LEN, 'big')
+        self.handshake.msg_length = len(ret)
+        prefix = self.handshake.marshal()  
+        return prefix + ret
 
     def unmarshal(self, msg: bytes):
-        self.modulus = int.from_bytes(msg[:20], "big")
-        self.public_key = int.from_bytes(msg[20:], "big")
+        self.modulus = int.from_bytes(msg[4:self.MODULUS_LEN+4], "big")
+        self.public_key = int.from_bytes(msg[4+self.MODULUS_LEN:], "big")
 
 
 class CertificateVerify:
