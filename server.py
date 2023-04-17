@@ -3,9 +3,10 @@ from typing import Optional
 from database import Account, get_account, AttemptsExceededError
 import shared.rpi_ssl as ssl
 from shared.protocol import MsgType, AppError
-from shared.card import Card
+from shared.card import Card, validate_encrypted_check
 from shared.handshake_handler import server_handle_handshake
 from shared.port import PORT
+from shared.paillier import DEFAULT_G, DEFAULT_SERVER_SECRET_P, DEFAULT_SERVER_SECRET_Q
 
 
 import my_secrets.server as secret_keys
@@ -44,10 +45,19 @@ class Handler(ssv.StreamRequestHandler):
         """
         if app_content[0] != MsgType.ACCOUNT_AUTH:  # Must be account auth message
             return bytes([MsgType.ERROR, AppError.INVALID_STAGE])
-        # Check the card
+        # Extract that check
+        to_read = int.from_bytes(app_content[1:4])
+        check = int.from_bytes(app_content[4:4+to_read])
         try:
-            card = Card.from_bytes(app_content[1:])
+            card = Card.from_bytes(app_content[4+to_read:])
             self.account = get_account(card)
+            # Check the card with the generated checksum
+            ok = validate_encrypted_check(card, DEFAULT_G, DEFAULT_SERVER_SECRET_P, DEFAULT_SERVER_SECRET_Q, check)
+            if not ok:
+                print("[WARN] Client failed the card checksum")
+                return bytes([MsgType.ERROR, AppError.BAD_MESSAGE])
+            if ok:
+                print("[LOG] Client passed the card checksum")
         except AttemptsExceededError:
             self.close = True
             return bytes([MsgType.ERROR, AppError.ATTEMPTS_EXCEEDED])

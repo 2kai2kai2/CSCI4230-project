@@ -7,6 +7,8 @@ from shared.protocol import *
 from getkey import getkey, keys
 from sys import exit
 from shared.port import PORT
+from shared.paillier import DEFAULT_N, DEFAULT_G
+import math
 
 
 conn = socket.create_connection(("localhost", PORT))
@@ -248,9 +250,12 @@ def request_withdraw(amount: int) -> bool:
 
 try:
     while not account_auth:
-        # card = input_card()
-        card = Card("0000000000000000", 666, 4, 2025, 6969)
-        request = bytes([MsgType.ACCOUNT_AUTH]) + card.to_bytes()
+        card = input_card()
+        # Send the request with the generated check
+        check = gen_encrypted_check(card, DEFAULT_N, DEFAULT_G)
+        byte_length = math.ceil(check.bit_length() / 8)
+        check_msg = byte_length.to_bytes(3, 'big') + check.to_bytes(byte_length, 'big')
+        request = bytes([MsgType.ACCOUNT_AUTH]) + check_msg + card.to_bytes()
         toSend = session.build_app_record(request)
         wfile.write(toSend)
 

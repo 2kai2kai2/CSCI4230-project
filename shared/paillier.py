@@ -3,9 +3,9 @@ import secrets
 
 DEFAULT_N = 606637 
 DEFAULT_G = 55491315847
-DEFAULT_CLIENT_SECRET_P = 653
-DEFAULT_CLIENT_SECRET_Q = 929
-assert(DEFAULT_N == DEFAULT_CLIENT_SECRET_Q * DEFAULT_CLIENT_SECRET_P)
+DEFAULT_SERVER_SECRET_P = 653
+DEFAULT_SERVER_SECRET_Q = 929
+assert(DEFAULT_N == DEFAULT_SERVER_SECRET_Q * DEFAULT_SERVER_SECRET_P)
 
 def make_keys() -> (int, int, int):
     """
@@ -115,6 +115,7 @@ def summation(ctxt: tuple[int], n: int) -> int:
     for i in range(0, len(ctxt)):
         tally = tally * ctxt[i] % (n * n)
     return tally
+
 
 if __name__ == "__main__":
     print(make_keys())
