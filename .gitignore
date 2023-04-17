@@ -16,5 +16,7 @@
 # Secrets!
 my_secrets/client.py
 my_secrets/server.py
+my_secrets/client.py.bak
+my_secrets/server.py.bak
 
 simple_ssl_handshake.py
