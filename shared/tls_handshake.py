@@ -476,38 +476,28 @@ class Certificate:
         self.modulus = None
         self.public_key = None
 
-    def populate(self, public_key: int, mod: int):
+    def populate(self, key: int, mod: int):
         self.modulus = mod
-        self.public_key = public_key
+        self.public_key = key
 
     def validate(self, private_key: int, p: int, q: int):
         lambdaN = (p - 1) * (q - 1)
         return 1 == (self.public_key * private_key) % lambdaN
 
     def marshal(self) -> bytes:
-        ret = b"0000" + \
-              ((self.modulus.bit_length() + 7) // 8).to_bytes(3, "big") + \
-              b"0000" + \
-              self.modulus.to_bytes((self.public_key.bit_length() + 7) // 8, 'big') + \
-              b"0000" + \
-              ((self.public_key.bit_length() + 7) // 8).to_bytes(3, "big") + \
-              b"0000" + \
-              self.public_key.to_bytes((self.public_key.bit_length() + 7) // 8, 'big')
+        print((self.public_key.bit_length() + 7) // 8)
+        ret = \
+            self.modulus.to_bytes(20, 'big') + \
+            self.public_key.to_bytes(20, 'big')
         return ret
 
     def unmarshal(self, msg: bytes):
-        modsize = int.from_bytes(msg[:3], "big")
-        msg = msg[5:]
-        self.modulus = int.from_bytes(msg[:modsize], "big")
-
-        msg = msg[2:]
-
-        keysize = int.from_bytes(msg[:3], "big")
-        msg = msg[5:]
-        self.public_key = int.from_bytes(msg[:keysize], "big")
+        self.modulus = int.from_bytes(msg[:20], "big")
+        self.public_key = int.from_bytes(msg[20:], "big")
 
 
 class CertificateVerify:
+    handshake = Handshake(HandshakeType.certificate_verify, -1)
     handshake = Handshake(HandshakeType.certificate_verify, -1)
 
     def populate(self, signatureScheme: SignatureScheme, signature: int):
@@ -544,12 +534,12 @@ class CertificateRequest:
     Super oversimplification.
     """
     handshake = Handshake(HandshakeType.certificate_request, 0)
+
     def marshal(self) -> bytes:
         return self.handshake.marshal()
+
     def unmarshal(self, msg: bytes):
         self.handshake.unmarshal(msg)
         if self.handshake.msg_type != HandshakeType.certificate_request:
             raise ssl.SSLError(ssl.AlertType.UnexpectedMsg,
                                "Recieved unexpected message type (should have been certificate_request)")
-
-
