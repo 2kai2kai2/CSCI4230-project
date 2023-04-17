@@ -27,12 +27,12 @@ def fetch_record() -> tuple[ssl.ContentType, bytes]:
 
 # ==== Handshake Stage ====
 
-import my_secrets.client as secrets
+import my_secrets.client as secret_keys
 
 INFO = {
-    "client_public": secrets.PUBLIC_KEY,
-    "client_private": secrets.PRIVATE_KEY,
-    "client_modulus": secrets.P * secrets.Q
+    "client_public": secret_keys.PUBLIC_KEY,
+    "client_private": secret_keys.PRIVATE_KEY,
+    "client_modulus": secret_keys.P * secret_keys.Q
 }
 
 session: ssl.Session = client_handle_handshake(rfile, wfile, INFO)

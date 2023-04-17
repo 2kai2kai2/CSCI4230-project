@@ -8,12 +8,12 @@ from shared.handshake_handler import server_handle_handshake
 from shared.port import PORT
 
 
-import my_secrets.server as secrets
+import my_secrets.server as secret_keys
 
 INFO = {
-    "server_public": secrets.PUBLIC_KEY,
-    "server_private": secrets.PRIVATE_KEY,
-    "server_modulus": secrets.P * secrets.Q
+    "server_public": secret_keys.PUBLIC_KEY,
+    "server_private": secret_keys.PRIVATE_KEY,
+    "server_modulus": secret_keys.P * secret_keys.Q
 }
 
 class Handler(ssv.StreamRequestHandler):
