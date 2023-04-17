@@ -51,6 +51,8 @@ def gen_keys(name):
     p = find_and_extract_hex_int(r"prime1:\n([\d:abcdef\n ]*)prime2", data)
     q = find_and_extract_hex_int(r"prime2:\n([\d:abcdef\n ]*)exponent1", data)
 
+    n = p * q
+
     # Store these keys in an appropriate secret file
     with open("./my_secrets/{}.py".format(name), "w+") as f:
         f.write("PUBLIC_KEY = ")
@@ -66,6 +68,8 @@ def gen_keys(name):
     with open("./my_secrets/{}_public.py".format(name), "w+") as f:
         f.write("PUBLIC_KEY = ")
         f.write(str(public_key))
+        f.write("\nN = ")
+        f.write(str(n))
         f.write("\n")
 
     # Clean up files

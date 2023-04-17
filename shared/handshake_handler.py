@@ -39,6 +39,7 @@ def server_handle_handshake(rfile: BytesIO, wfile: BytesIO, info) -> ssl.Session
     private = info["server_private"]
     public = info["server_public"]
     modulus = info["server_modulus"]
+    expected_client_modulus = info["client_modulus"]
     """
     Handles the handshake from the server side, temporarily taking control of the buffers.
 
@@ -138,6 +139,12 @@ def server_handle_handshake(rfile: BytesIO, wfile: BytesIO, info) -> ssl.Session
     client_public_key = client_cert.public_key
     client_modulus = client_cert.modulus
 
+    # Validate the received modulus against the one provided to us in info.
+    # This emulates a CA. As opposed to having a way of validating certificates
+    # public a PKC, we instead only accept one 'certificate' with a pre-shared modulus.
+    if client_modulus != expected_client_modulus:
+        raise ssl.SSLError(ssl.AlertType.CertificateUnknown, "Unrecognized certificate")
+
     # Now, process the client verify
     header = rfile.read(4)
     hs.unmarshal(header)
@@ -168,6 +175,7 @@ def client_handle_handshake(rfile: BytesIO, wfile: BytesIO, info) -> ssl.Session
     private = info["client_private"]
     public = info["client_public"]
     modulus = info["client_modulus"]
+    expected_server_modulus = info["server_modulus"]
     """
     Handles the handshake from the server side, temporarily taking control of the buffers.
     
@@ -239,6 +247,10 @@ def client_handle_handshake(rfile: BytesIO, wfile: BytesIO, info) -> ssl.Session
 
     server_public_key = cert.public_key
     server_modulus = cert.modulus
+
+    # Just like for the server...
+    if server_modulus != expected_server_modulus:
+        raise ssl.SSLError(ssl.AlertType.CertificateUnknown, "Unrecognized certificate")
 
     # Wait for the server to send their CertificateVerify message!
     header = rfile.read(4)

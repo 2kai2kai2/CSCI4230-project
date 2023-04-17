@@ -10,11 +10,13 @@ import shared.paillier as paillier
 
 
 import my_secrets.server as secret_keys
+import my_secrets.client_public as client_public_info
 
 INFO = {
     "server_public": secret_keys.PUBLIC_KEY,
     "server_private": secret_keys.PRIVATE_KEY,
-    "server_modulus": secret_keys.P * secret_keys.Q
+    "server_modulus": secret_keys.P * secret_keys.Q,
+    "client_modulus": client_public_info.N,
 }
 
 
