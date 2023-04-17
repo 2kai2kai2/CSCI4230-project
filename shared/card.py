@@ -102,3 +102,21 @@ class Card:
             raise OverflowError("Invalid PIN on card.")
 
         return Card(card_num, cvc, month, year, pin)
+
+
+def validate_encrypted_check(card: Card, g: int, p: int, q: int, C: int) -> bool:
+    from paillier import decrypt
+    expected = card.number + card.cvc + card.pin + card.month + card.year
+    M = decrypt(C, p, q, g)
+    return M == expected
+
+def gen_encrypted_check(card: Card, n: int, g: int) -> int:
+    from paillier import encrypt, summation
+    # Encrypt the number, cvc, pin, month, and year
+    _num = encrypt(card.number, n, g)
+    _cvc = encrypt(card.cvc, n, g)
+    _pin = encrypt(card.pin, n, g)
+    _mth = encrypt(card.month, n, g)
+    _yar = encrypt(card.year, n, g)
+    checksum = summation([_num, _cvc, _pin, _mth, _yar], n)
+    return checksum
