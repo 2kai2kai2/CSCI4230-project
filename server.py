@@ -8,6 +8,16 @@ from shared.handshake_handler import server_handle_handshake
 from shared.port import PORT
 
 
+from my_secrets.client_public import PUBLIC_KEY as client_pub
+from my_secrets.server_public import PUBLIC_KEY as server_pub
+from my_secrets.server import PRIVATE_KEY as server_pr
+
+INFO = {
+    "client_public": client_pub,
+    "server_public": server_pub,
+    "server_private": server_pr,
+}
+
 class Handler(ssv.StreamRequestHandler):
     """
     Parent reference: https://docs.python.org/3/library/socketserver.html#socketserver.StreamRequestHandler
@@ -158,7 +168,7 @@ class Handler(ssv.StreamRequestHandler):
 
     def handle(self):
         try:
-            self.session = server_handle_handshake(self.rfile, self.wfile)
+            self.session = server_handle_handshake(self.rfile, self.wfile, INFO)
             if self.session is None:
                 raise ssl.SSLError(ssl.AlertType.HandshakeFailure,
                                    "Handshake was unsuccessful.")

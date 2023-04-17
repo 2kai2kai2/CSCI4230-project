@@ -27,7 +27,17 @@ def fetch_record() -> tuple[ssl.ContentType, bytes]:
 
 # ==== Handshake Stage ====
 
-session: ssl.Session = client_handle_handshake(rfile, wfile)
+from my_secrets.client_public import PUBLIC_KEY as client_pub
+from my_secrets.client import PRIVATE_KEY as client_pr
+from my_secrets.server_public import PUBLIC_KEY as server_pub
+
+info = {
+    "client_public": client_pub,
+    "client_private": client_pr,
+    "server_public": server_pub,
+}
+
+session: ssl.Session = client_handle_handshake(rfile, wfile, info)
 if session == None:
     exit(1)
 
