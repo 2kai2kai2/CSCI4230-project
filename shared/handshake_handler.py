@@ -7,8 +7,25 @@ from os import urandom
 import shared.rpi_hash as rpi_hash
 # import cpp
 
+def gen_hash_input(to_sign: bytes, is_server: bool = True):
+    # The digital signature is then computed over the concatenation of:
+    #    -  A string that consists of octet 32 (0x20) repeated 64 times
+    full = bytes([0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20])
+    #    -  The context string
+    if is_server:
+        full = full + bytes("TLS 1.3, server CertificateVerify")
+    else:
+        full = full + bytes("TLS 1.3, client CertificateVerify")
+    #    -  A single 0 byte which serves as the separator
+    full = full + bytes([0])
+    #    -  The content to be signed
+    full = full + to_sign
+    return full
 
-def server_handle_handshake(rfile: BytesIO, wfile: BytesIO) -> ssl.Session:
+def server_handle_handshake(rfile: BytesIO, wfile: BytesIO, info) -> ssl.Session:
+    local_private = info["server_private"]
+    local_public = info["server_public"]
+    remote_public = info["client_public"]
     """
     Handles the handshake from the server side, temporarily taking control of the buffers.
 
@@ -32,11 +49,7 @@ def server_handle_handshake(rfile: BytesIO, wfile: BytesIO) -> ssl.Session:
     client_hello.unmarshal(data)
 
     # Get the key_share extension from the client
-    key_share = None
-    for e in client_hello.extensions:
-        if e.extension_type == handshake.ExtensionType.key_share:
-            key_share = e
-            break
+    key_share = handshake.FindExtension(client_hello.extensions, handshake.ExtensionType.key_share)
     if key_share == None:
         raise ssl.SSLError(ssl.AlertType.HandshakeFailure, "Failed to find key_share extension.")
     key_share_dh_y_value = handshake.KeyShareEntry()
@@ -76,7 +89,10 @@ def server_handle_handshake(rfile: BytesIO, wfile: BytesIO) -> ssl.Session:
     )
 
 
-def client_handle_handshake(rfile: BytesIO, wfile: BytesIO) -> ssl.Session:
+def client_handle_handshake(rfile: BytesIO, wfile: BytesIO, info) -> ssl.Session:
+    local_private = info["client_private"]
+    local_public = info["client_public"]
+    remote_public = info["server_public"]
     """
     Handles the handshake from the server side, temporarily taking control of the buffers.
     
@@ -119,12 +135,7 @@ def client_handle_handshake(rfile: BytesIO, wfile: BytesIO) -> ssl.Session:
     # Now we need to inspect the packet to discover what keygen algorithm
     # we are using.
     # Find the key_share extension
-    ex = server_hello.extensions
-    key_share = None
-    for e in ex:
-        if e.extension_type == handshake.ExtensionType.key_share:
-            key_share = e
-            break
+    key_share = handshake.FindExtension(server_hello.extensions, handshake.ExtensionType.key_share)
     if key_share == None:
         raise ssl.SSLError(ssl.AlertType.HandshakeFailure, "Failed to find key_share extension that was returned.")
     key_share_dh_y_value = handshake.KeyShareEntry()
