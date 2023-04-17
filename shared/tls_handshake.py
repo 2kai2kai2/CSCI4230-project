@@ -1,4 +1,3 @@
-
 # urandom generates cryptographically-secure random numbers as per
 # https://docs.python.org/3/library/os.html 
 # "This function returns random bytes from an OS-specific randomness source. 
@@ -127,6 +126,7 @@ class ExtensionType(IntEnum):
     key_share = 51
     server_name = 0
     server_certificate_type = 20
+
 
 class SignatureScheme(IntEnum):
     # This replaces SignatureAlgorithms, which is the TLS 1.2 standard.
@@ -341,6 +341,9 @@ class ServerHello:
 
     RETRY_REQUEST = 0xCF21AD74E59A6111BE1D8C021E65B891C2A211167ABB8C5E079E09E2C8A8339C.to_bytes(32, 'big')
 
+    def __init__(self):
+        self.legacy_session_id = None
+
     def populate(self, correspondingHello: ClientHello, selectedCipherSuite, DHKeyShare: KeyShareEntry,
                  randomFunc: Callable[[int], bytes] = urandom):
         # Create 32 random bytes for the 'random' field (used as a Nonce)
@@ -434,8 +437,9 @@ class ServerHello:
 
 
 class EncryptedExtensions:
-    handshake = Handshake(HandshakeType.encrypted_extensions, -1)
-    extensions = []
+    def __init__(self):
+        self.handshake = Handshake(HandshakeType.encrypted_extensions, -1)
+        self.extensions = []
 
     def populate(self, extensions: list[Extension]):
         self.extensions = extensions
@@ -466,26 +470,38 @@ class EncryptedExtensions:
 
 
 class Certificate:
-    def __init__(self):
-        self.certificate_request_context = None
-        self.certificate_list = None
-
-    def populate(self, context: bytes, entries: list[bytes]):
-        self.certificate_request_context = context
-        self.certificate_list = entries
-
-
-class CertificateEntry:
     handshake = Handshake(HandshakeType.certificate, -1)
 
     def __init__(self):
+        self.modulus = None
         self.public_key = None
 
-    def populate(self, public_key: bytes):
+    def populate(self, public_key: int, mod: int):
+        self.modulus = mod
         self.public_key = public_key
 
     def validate(self, private_key: int, p: int, q: int):
         lambdaN = (p - 1) * (q - 1)
         return 1 == (self.public_key * private_key) % lambdaN
-    # def marshal(self) -> bytes:
 
+    def marshal(self) -> bytes:
+        ret = b"0000" + \
+              (self.modulus.bit_length() // 8).to_bytes(3, "big") + \
+              b"0000" + \
+              self.modulus.to_bytes(self.public_key.bit_length() // 8, 'big') + \
+              b"0000" + \
+              (self.public_key.bit_length() // 8).to_bytes(3, "big") + \
+              b"0000" + \
+              self.public_key.to_bytes(self.public_key.bit_length() // 8, 'big')
+        return ret
+
+    def unmarshal(self, msg: bytes):
+        modsize = int.from_bytes(msg[:3], "big")
+        msg = msg[5:]
+        self.modulus = int.from_bytes(msg[:modsize], "big")
+
+        msg = msg[2:]
+
+        keysize = int.from_bytes(msg[:3], "big")
+        msg = msg[5:]
+        self.public_key = int.from_bytes(msg[:keysize], "big")
