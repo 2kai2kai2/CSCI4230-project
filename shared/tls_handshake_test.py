@@ -76,3 +76,11 @@ if __name__ == "__main__":
     cert.populate(c_pub)
     assert(cert.validate(c_pr, c_p, c_q))
 
+    # ------------------------------
+    cert_verify = CertificateVerify()
+    cert_verify.populate(SignatureScheme.rsa_pkcs1_sha384, 37)
+    cert_verify2 = CertificateVerify()
+    cert_verify2.unmarshal(cert_verify.marshal())
+    assert(cert_verify.marshal() == cert_verify2.marshal())
+
+

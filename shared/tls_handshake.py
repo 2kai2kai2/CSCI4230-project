@@ -119,6 +119,11 @@ class ExtensionType(IntEnum):
     server_name = 0
     server_certificate_type = 20
 
+class SignatureScheme(IntEnum):
+    # This replaces SignatureAlgorithms, which is the TLS 1.2 standard.
+    # That being said, SignatureAlgorithms has the same information
+    rsa_pkcs1_sha384 = 0x0501
+
 class SignatureAlgorithms(IntEnum):
     # A full list of signature algorithms is in RFC 8446, Section 4.2.3:
     # https://datatracker.ietf.org/doc/html/rfc8446#section-4.2.3
@@ -443,5 +448,32 @@ class Certificate:
         return 1 == (self.public_key * private_key) % lambdaN
     # def marshal(self) -> bytes:
 
+class CertificateVerify:
+    handshake = Handshake(HandshakeType.certificate_verify, -1)
 
+    def populate(self, signatureScheme: SignatureScheme, signature: int):
+        self.signatureScheme = signatureScheme
+        if signature > pow(2, 16):
+            print("[WARN] Signature should not be longer than 16 bits!")
+        self.signature = signature
 
+    def marshal(self) -> bytes:
+        """
+        struct {
+            SignatureScheme algorithm;
+            opaque signature<0..2^16-1>;
+        } CertificateVerify;
+        """
+        ret = self.signatureScheme.to_bytes(2, 'big')
+        ret = ret + self.signature.to_bytes(2, 'big')
+        self.handshake.msg_length = len(ret)
+        prefix = self.handshake.marshal()
+        return prefix + ret
+
+    def unmarshal(self, msg: bytes) -> bool:
+        self.handshake.unmarshal(msg)
+        if self.handshake.msg_type != HandshakeType.certificate_verify:
+            raise ssl.SSLError(ssl.AlertType.UnexpectedMsg,
+                               "Recieved unexpected message type (should have been certificate_verify)")
+        self.signatureScheme = int.from_bytes(msg[4:6], 'big')
+        self.signature = int.from_bytes(msg[6:8], 'big')
