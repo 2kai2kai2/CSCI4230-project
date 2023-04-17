@@ -5,9 +5,10 @@
 # though its exact quality depends on the OS implementation."
 from os import urandom
 from enum import IntEnum
+import math
 from typing import Union, Callable
-# import shared.rpi_ssl as ssl
-import rpi_ssl as ssl
+import shared.rpi_ssl as ssl
+# import rpi_ssl as ssl
 
 # We define our own cipher with a unique custom value
 TLS_AES_128_SHA1 = 0x13A1
@@ -333,16 +334,15 @@ class ServerHello:
 
     cipher_suite = None
 
-    extensions = [
-        MakeExtension(ExtensionType.supported_versions, 0x0304.to_bytes(2, 'big')),
-    ]
-
     handshake = Handshake(HandshakeType.server_hello, -1)
 
     RETRY_REQUEST = 0xCF21AD74E59A6111BE1D8C021E65B891C2A211167ABB8C5E079E09E2C8A8339C.to_bytes(32, 'big')
 
     def __init__(self):
         self.legacy_session_id = None
+        self.extensions = [
+            MakeExtension(ExtensionType.supported_versions, 0x0304.to_bytes(2, 'big')),
+        ]
 
     def populate(self, correspondingHello: ClientHello, selectedCipherSuite, DHKeyShare: KeyShareEntry,
                  randomFunc: Callable[[int], bytes] = urandom):
@@ -508,34 +508,35 @@ class Certificate:
 
 
 class CertificateVerify:
-     handshake = Handshake(HandshakeType.certificate_verify, -1)
+    handshake = Handshake(HandshakeType.certificate_verify, -1)
 
-     def populate(self, signatureScheme: SignatureScheme, signature: int):
-         self.signatureScheme = signatureScheme
-         if signature > pow(2, 16):
-             print("[WARN] Signature should not be longer than 16 bits!")
-         self.signature = signature
+    def populate(self, signatureScheme: SignatureScheme, signature: int):
+        self.signatureScheme = signatureScheme
+        self.signature = signature
 
-     def marshal(self) -> bytes:
-         """
-         struct {
-             SignatureScheme algorithm;
-             opaque signature<0..2^16-1>;
-         } CertificateVerify;
-         """
-         ret = self.signatureScheme.to_bytes(2, 'big')
-         ret = ret + self.signature.to_bytes(2, 'big')
-         self.handshake.msg_length = len(ret)
-         prefix = self.handshake.marshal()
-         return prefix + ret
+    def marshal(self) -> bytes:
+        """
+        struct {
+            SignatureScheme algorithm;
+            opaque signature<0..2^16-1>;
+        } CertificateVerify;
+        """
+        ret = self.signatureScheme.to_bytes(2, 'big')
+        sigByteLength = math.ceil(self.signature.bit_length() / 8)
+        ret = ret + sigByteLength.to_bytes(2, 'big')
+        ret = ret + self.signature.to_bytes(sigByteLength, 'big')
+        self.handshake.msg_length = len(ret)
+        prefix = self.handshake.marshal()
+        return prefix + ret
 
-     def unmarshal(self, msg: bytes) -> bool:
-         self.handshake.unmarshal(msg)
-         if self.handshake.msg_type != HandshakeType.certificate_verify:
-             raise ssl.SSLError(ssl.AlertType.UnexpectedMsg,
-                                "Recieved unexpected message type (should have been certificate_verify)")
-         self.signatureScheme = int.from_bytes(msg[4:6], 'big')
-         self.signature = int.from_bytes(msg[6:8], 'big')
+    def unmarshal(self, msg: bytes) -> bool:
+        self.handshake.unmarshal(msg)
+        if self.handshake.msg_type != HandshakeType.certificate_verify:
+            raise ssl.SSLError(ssl.AlertType.UnexpectedMsg,
+                               "Recieved unexpected message type (should have been certificate_verify)")
+        self.signatureScheme = int.from_bytes(msg[4:6], 'big')
+        length = int.from_bytes(msg[6:8], 'big')
+        self.signature = int.from_bytes(msg[8:8+length], 'big')
 
 
 class CertificateRequest:
