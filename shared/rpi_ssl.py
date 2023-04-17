@@ -43,7 +43,7 @@ class AlertType(IntEnum):
 class SSLError(Exception):
     def __init__(self, atype: AlertType, msg=None):
         self.atype = atype
-        super().__init__(f"FATAL TLS/SSL error: {atype}", msg)
+        super().__init__(f"FATAL TLS/SSL error: {atype.name}", msg)
 
 
 def build_record(content_type: ContentType, body: bytes) -> bytes:
@@ -111,13 +111,14 @@ class Session:
         - Potentially some error if block size is incorrect.
         """
         mac_value = self.MAC(self.seq.to_bytes(8, 'big') + body)
-        self.seq += 1
         plaintext = body + mac_value
         pad_len = self.block_size - \
             ((len(plaintext) + 1) % self.block_size) + 1
         plaintext += b'a' * (pad_len - 1) + pad_len.to_bytes(1, 'big')
+        # print(f"s{self.seq}: {plaintext.hex(';')}", flush=True)
         # Note that there will always be at least one byte of 'pad' since we will always have the pad length byte.
 
+        self.seq += 1
         ciphertext = self.encryptor(plaintext)
         return build_record(content_type, ciphertext)
 
@@ -177,12 +178,17 @@ class Session:
                 "TLS/SSL record content length must be a multiple of the block length.")
 
         plaintext = self.decryptor(content)
+        # print(f"r{self.seq}: {plaintext.hex(';')}", flush=True)
         pad_len: int = plaintext[-1]
+        if pad_len <= 0 or 16 <= pad_len:
+            raise SSLError(AlertType.DecodeError,
+                           "Invalid padding length in decrypted message.")
         # Note that there will always be at least one byte of 'pad' since we will always have the pad length byte.
         plaintext = plaintext[:-pad_len]
         message = plaintext[:-self.mac_length]
+        mac_calculated = self.MAC(self.seq.to_bytes(8, 'big') + message)
         mac_value = plaintext[-self.mac_length:]
-        if mac_value != self.MAC(self.seq.to_bytes(8, 'big') + message):
+        if mac_value != mac_calculated:
             self.seq += 1
             raise SSLError(AlertType.BadMAC, f"seq{self.seq}")
         self.seq += 1
