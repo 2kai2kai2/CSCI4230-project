@@ -126,7 +126,7 @@ def RSASSA_PSS_SIGN(msg: bytes, key: int, n: int, hash_func: HashFuncType) -> by
     return s.to_bytes(math.ceil(math.log2(n) / 8), 'big')
 
 
-def RSASSA_PSS_VERIFY(msg: bytes, S: bytes, key: int, n: int, hash_func: HashFuncType) -> bool:
+def RSASSA_PSS_VERIFY(msg: bytes, s: int, key: int, n: int, hash_func: HashFuncType) -> bool:
     """
     Verifies a message using RSASSA-PSS as specified in RFC 8017 section 8.1.2
 
@@ -142,9 +142,6 @@ def RSASSA_PSS_VERIFY(msg: bytes, S: bytes, key: int, n: int, hash_func: HashFun
     ----
     `True` if successfully verified, otherwise `False`
     """
-    if len(S) != math.ceil(math.log2(n) / 8):
-        return False
-    s = int.from_bytes(S, 'big')
     m = int(pow(s, key, n))
     try:
         EM = m.to_bytes(math.floor((math.log2(n) - 1)/8), 'big')

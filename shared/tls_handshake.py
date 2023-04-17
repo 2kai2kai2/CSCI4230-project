@@ -132,16 +132,18 @@ class ExtensionType(IntEnum):
 class SignatureScheme(IntEnum):
     # This replaces SignatureAlgorithms, which is the TLS 1.2 standard.
     # That being said, SignatureAlgorithms has the same information
+    rsa_pkcs1_sha256 = 0x0401
     rsa_pkcs1_sha384 = 0x0501
-    rsa_pkcs1_sha256 = (0x0401)
+    rsa_pss_pss_sha256 = 0x0809
 
 
 class SignatureAlgorithms(IntEnum):
     # A full list of signature algorithms is in RFC 8446, Section 4.2.3:
     # https://datatracker.ietf.org/doc/html/rfc8446#section-4.2.3
-    rsa_pkcs1_sha384 = 0x0501
-    rsa_pkcs1_sha256 = (0x0401)
     rsa_pkcs1_sha1 = 0x0201
+    rsa_pkcs1_sha256 = 0x0401
+    rsa_pkcs1_sha384 = 0x0501
+    rsa_pss_pss_sha256 = 0x0809
 
 
 class SupportedGroups(IntEnum):
@@ -232,8 +234,7 @@ class ClientHello:
     extensions = [
         MakeExtension(ExtensionType.supported_versions, 0x0304.to_bytes(2, 'big')),
         MakeExtension(ExtensionType.signature_algorithms, marshal_list_of_ints([
-            SignatureAlgorithms.rsa_pkcs1_sha384,
-            SignatureAlgorithms.rsa_pkcs1_sha256,
+            SignatureAlgorithms.rsa_pss_pss_sha256,
         ], 2, 2)),
         # Certificate Authorities is not required
         # Our client will send it's own key_share material to save on an extra round trip with 

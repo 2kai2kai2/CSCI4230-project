@@ -6,9 +6,12 @@ from os import urandom
 from typing import Tuple
 
 import shared.rpi_hash as rpi_hash
+import shared.rsassa_pss as rsassa_pss
 import cpp
 
-sig_alg = rpi_hash.SHA256
+sig_hash = rpi_hash.SHA256
+sig_alg = rsassa_pss.RSASSA_PSS_SIGN
+validate_sig_alg = rsassa_pss.RSASSA_PSS_VERIFY
 
 def gen_hash_input(to_sign: bytes, is_server: bool = True) -> bytes:
     # The digital signature is then computed over the concatenation of:
@@ -108,15 +111,14 @@ def server_handle_handshake(rfile: BytesIO, wfile: BytesIO, info) -> ssl.Session
         raise ssl.SSLError(ssl.AlertType.HandshakeFailure, "Failed to find signature_algorithms extension.")
     signature_algorithm_list, _ = handshake.unmarshal_list(signature_algorithms.extension_data, 2, 2)
     signature_algorithm_list = [int.from_bytes(x) for x in signature_algorithm_list]
-    if not handshake.SignatureAlgorithms.rsa_pkcs1_sha256 in signature_algorithm_list:
+    if not handshake.SignatureAlgorithms.rsa_pss_pss_sha256 in signature_algorithm_list:
         raise ssl.SSLError(ssl.AlertType.HandshakeFailure, "Client does not support desired signature algorithm.")
 
-    transcript_hash = sig_alg(transcript)
+    transcript_hash = sig_hash(transcript)
     to_hash = gen_hash_input(transcript_hash)
-    found_signature = int.from_bytes(sig_alg(to_hash))
-    encrypted_signature = pow(found_signature, private, modulus)
+    encrypted_signature = int.from_bytes(sig_alg(to_hash, private, modulus, sig_hash))
     cert_verify = handshake.CertificateVerify()
-    cert_verify.populate(handshake.SignatureScheme.rsa_pkcs1_sha256, encrypted_signature)
+    cert_verify.populate(handshake.SignatureScheme.rsa_pss_pss_sha256, encrypted_signature)
 
     to_send = cert_verify.marshal()
     wfile.write(to_send)
@@ -145,16 +147,12 @@ def server_handle_handshake(rfile: BytesIO, wfile: BytesIO, info) -> ssl.Session
     packet = header + rest
     cert_verify = handshake.CertificateVerify()
     cert_verify.unmarshal(packet)
-    # Let's decrypt the signature 
-    encrypted_signature = pow(cert_verify.signature, client_public_key, client_modulus)
-    decrypted_signature = encrypted_signature
-    # Now let's find the signature of the transcript independently
-    if cert_verify.signatureScheme != handshake.SignatureScheme.rsa_pkcs1_sha256:
+    # Validate signature, wowza
+    if cert_verify.signatureScheme != handshake.SignatureScheme.rsa_pss_pss_sha256:
         raise ssl.SSLError(ssl.AlertType.HandshakeFailure, "Client does not use a supported signature algorithm.")
-    transcript_hash = sig_alg(transcript)
+    transcript_hash = sig_hash(transcript)
     to_hash = gen_hash_input(transcript_hash)
-    found_signature = int.from_bytes(sig_alg(to_hash))
-    if found_signature != decrypted_signature:
+    if not validate_sig_alg(to_hash, cert_verify.signature, client_public_key, client_modulus, sig_hash):
         raise ssl.SSLError(ssl.AlertType.BadCertificate, "Decrypted signature did not match expectation")
 
     return ssl.Session(
@@ -251,16 +249,14 @@ def client_handle_handshake(rfile: BytesIO, wfile: BytesIO, info) -> ssl.Session
     packet = header + rest
     cert_verify = handshake.CertificateVerify()
     cert_verify.unmarshal(packet)
-    # Let's decrypt the signature 
-    encrypted_signature = pow(cert_verify.signature, server_public_key, server_modulus)
-    decrypted_signature = encrypted_signature
-    # Now let's find the signature of the transcript independently
-    if cert_verify.signatureScheme != handshake.SignatureScheme.rsa_pkcs1_sha256:
+    # Validate the certificate
+    if cert_verify.signatureScheme != handshake.SignatureScheme.rsa_pss_pss_sha256:
         raise ssl.SSLError(ssl.AlertType.HandshakeFailure, "Server does not use a supported signature algorithm.")
-    transcript_hash = sig_alg(transcript)
+
+    transcript_hash = sig_hash(transcript)
     to_hash = gen_hash_input(transcript_hash)
-    found_signature = int.from_bytes(sig_alg(to_hash))
-    if found_signature != decrypted_signature:
+
+    if not validate_sig_alg(to_hash, cert_verify.signature, server_public_key, server_modulus, sig_hash):
         raise ssl.SSLError(ssl.AlertType.BadCertificate, "Decrypted signature did not match expectation")
 
     transcript += packet
@@ -274,12 +270,11 @@ def client_handle_handshake(rfile: BytesIO, wfile: BytesIO, info) -> ssl.Session
     transcript += to_send
 
     # Send our certificate verification
-    my_transcript_hash = sig_alg(transcript)
+    my_transcript_hash = sig_hash(transcript)
     my_to_hash = gen_hash_input(my_transcript_hash)
-    my_found_signature = int.from_bytes(sig_alg(my_to_hash))
-    my_encrypted_signature = pow(my_found_signature, private, modulus)
+    my_encrypted_signature = int.from_bytes(sig_alg(my_to_hash, private, modulus, sig_hash))
     cert_verify = handshake.CertificateVerify()
-    cert_verify.populate(handshake.SignatureScheme.rsa_pkcs1_sha256, my_encrypted_signature)
+    cert_verify.populate(handshake.SignatureScheme.rsa_pss_pss_sha256, my_encrypted_signature)
 
     to_send = cert_verify.marshal()
     wfile.write(to_send)
