@@ -54,6 +54,7 @@ class HandshakeType(IntEnum):
     server_hello = 2
     encrypted_extensions = 8
     certificate = 11
+    certificate_request = 13
     certificate_verify = 15
     finished = 20
 
@@ -477,3 +478,18 @@ class CertificateVerify:
                                "Recieved unexpected message type (should have been certificate_verify)")
         self.signatureScheme = int.from_bytes(msg[4:6], 'big')
         self.signature = int.from_bytes(msg[6:8], 'big')
+
+class CertificateRequest:
+    """
+    Super oversimplification.
+    """
+    handshake = Handshake(HandshakeType.certificate_request, 0)
+    def marshal(self) -> bytes:
+        return self.handshake.marshal()
+    def unmarshal(self, msg: bytes):
+        self.handshake.unmarshal(msg)
+        if self.handshake.msg_type != HandshakeType.certificate_request:
+            raise ssl.SSLError(ssl.AlertType.UnexpectedMsg,
+                               "Recieved unexpected message type (should have been certificate_request)")
+
+
