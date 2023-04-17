@@ -1,3 +1,4 @@
+
 # urandom generates cryptographically-secure random numbers as per
 # https://docs.python.org/3/library/os.html 
 # "This function returns random bytes from an OS-specific randomness source. 
@@ -126,6 +127,11 @@ class ExtensionType(IntEnum):
     key_share = 51
     server_name = 0
     server_certificate_type = 20
+
+class SignatureScheme(IntEnum):
+    # This replaces SignatureAlgorithms, which is the TLS 1.2 standard.
+    # That being said, SignatureAlgorithms has the same information
+    rsa_pkcs1_sha384 = 0x0501
 
 
 class SignatureAlgorithms(IntEnum):
@@ -482,3 +488,4 @@ class CertificateEntry:
         lambdaN = (p - 1) * (q - 1)
         return 1 == (self.public_key * private_key) % lambdaN
     # def marshal(self) -> bytes:
+
