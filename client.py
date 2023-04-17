@@ -1,3 +1,4 @@
+from typing import Literal, Union
 from shared.handshake_handler import client_handle_handshake
 import socket
 import shared.rpi_ssl as ssl
@@ -157,40 +158,7 @@ def input_card() -> Card:
 
 
 account_auth = False
-while not account_auth:
-    card = input_card()
-    request = bytes([MsgType.ACCOUNT_AUTH]) + card.to_bytes()
-    toSend = session.build_app_record(request)
-    wfile.write(toSend)
 
-    rtype, tls_content = fetch_record()
-    if rtype == ssl.ContentType.Alert:
-        alevel, atype = session.open_alert_record(tls_content)
-        if alevel == ssl.AlertLevel.FATAL:
-            print("FATAL ERROR: " + atype.name)
-            quit()
-        else:
-            pass  # handle any warnings that need to be handled
-    elif rtype == ssl.ContentType.Application:
-        app_content = session.open_encrypted_record(tls_content)
-        if app_content[0] == MsgType.ERROR:
-            print(f"ERROR (app): {AppError(app_content[1]).name}\n")
-            quit()
-        elif app_content[0] != MsgType.ACCOUNT_AUTH:
-            # Something went wrong. Let's just move on.
-            print(
-                f"WARNING (app): Recieved app message type {MsgType(app_content[0]).name} instead of ACCOUNT_AUTH")
-            continue
-        if app_content[1] == 0x01:
-            account_auth = True
-            print("++ Account Authorized ++\n")
-        else:
-            print("!! Invalid details !!\n")
-    else:
-        pass  # That wasn't supposed to happen.
-
-
-# ==== Commands Stage ====
 
 def select_mode_legacy() -> MsgType:
     # Still works if your computer doesn't support getkey or ANSI escape codes
@@ -203,32 +171,39 @@ def select_mode_legacy() -> MsgType:
         return MsgType[mode]
 
 
-def select_mode() -> MsgType:
+def select_mode() -> Union[MsgType, Literal['EXIT']]:
     option = MsgType.BALANCE
     while True:
-        if option is MsgType.BALANCE:
+        if option == MsgType.BALANCE:
             print(
-                "\r\x1b[7mBALANCE\x1b[27m   DEPOSIT   WITHDRAW\x1b[?25l", end="")
-        elif option is MsgType.DEPOSIT:
+                "\r\x1b[7mBALANCE\x1b[27m   DEPOSIT   WITHDRAW   EXIT\x1b[?25l", end="")
+        elif option == MsgType.DEPOSIT:
             print(
-                "\rBALANCE   \x1b[7mDEPOSIT\x1b[27m   WITHDRAW\x1b[?25l", end="")
-        elif option is MsgType.WITHDRAW:
+                "\rBALANCE   \x1b[7mDEPOSIT\x1b[27m   WITHDRAW   EXIT\x1b[?25l", end="")
+        elif option == MsgType.WITHDRAW:
             print(
-                "\rBALANCE   DEPOSIT   \x1b[7mWITHDRAW\x1b[27m\x1b[?25l", end="")
+                "\rBALANCE   DEPOSIT   \x1b[7mWITHDRAW\x1b[27m   EXIT\x1b[?25l", end="")
+        elif option == "EXIT":
+            print(
+                "\rBALANCE   DEPOSIT   WITHDRAW   \x1b[7mEXIT\x1b[27m\x1b[?25l", end="")
         k = getkey()
         if k == keys.ENTER:
             print("\x1b[?25h")
             return option
         elif k == keys.LEFT:
-            if option is MsgType.DEPOSIT:
+            if option == MsgType.DEPOSIT:
                 option = MsgType.BALANCE
-            elif option is MsgType.WITHDRAW:
+            elif option == MsgType.WITHDRAW:
                 option = MsgType.DEPOSIT
-        elif k == keys.RIGHT:
-            if option is MsgType.BALANCE:
-                option = MsgType.DEPOSIT
-            elif option is MsgType.DEPOSIT:
+            elif option == "EXIT":
                 option = MsgType.WITHDRAW
+        elif k == keys.RIGHT:
+            if option == MsgType.BALANCE:
+                option = MsgType.DEPOSIT
+            elif option == MsgType.DEPOSIT:
+                option = MsgType.WITHDRAW
+            elif option == MsgType.WITHDRAW:
+                option = "EXIT"
 
 
 def request_balance() -> int:
@@ -263,26 +238,79 @@ def request_withdraw(amount: int) -> bool:
     return response[1] == 0x01
 
 
-while True:
-    print("Select command:")
-    mode = select_mode()
-    if mode == MsgType.BALANCE:
-        print("Fetching balance...")
-        amount = request_balance()
-        print(f"Account Balance: ${amount/100:.2f}")
-    elif mode == MsgType.DEPOSIT:
-        amount = input("Enter amount to deposit: $")
-        if not amount.replace(".", "", 1).isdecimal():
-            print("Invalid number format.")
-            continue
-        success = request_deposit(int(float(amount) * 100))
-        print("Deposit " + ("successful." if success else "unsuccessful."))
-    elif mode == MsgType.WITHDRAW:
-        amount = input("Enter amount to withdraw: $")
-        if not amount.replace(".", "", 1).isdecimal():
-            print("Invalid number format.")
-            continue
-        success = request_withdraw(int(float(amount) * 100))
-        print("Withdrawal " + ("successful." if success else "unsuccessful."))
-    else:
-        raise NotImplementedError("This shouldn't be able to happen.")
+try:
+    while not account_auth:
+        card = input_card()
+        request = bytes([MsgType.ACCOUNT_AUTH]) + card.to_bytes()
+        toSend = session.build_app_record(request)
+        wfile.write(toSend)
+
+        rtype, tls_content = fetch_record()
+        if rtype == ssl.ContentType.Alert:
+            alevel, atype = session.open_alert_record(tls_content)
+            if alevel == ssl.AlertLevel.FATAL:
+                print("FATAL ERROR: " + atype.name)
+                quit()
+            else:
+                pass  # handle any warnings that need to be handled
+        elif rtype == ssl.ContentType.Application:
+            app_content = session.open_encrypted_record(tls_content)
+            if app_content[0] == MsgType.ERROR:
+                print(f"ERROR (app): {AppError(app_content[1]).name}\n")
+                quit()
+            elif app_content[0] != MsgType.ACCOUNT_AUTH:
+                # Something went wrong. Let's just move on.
+                print(
+                    f"WARNING (app): Recieved app message type {MsgType(app_content[0]).name} instead of ACCOUNT_AUTH")
+                continue
+            if app_content[1] == 0x01:
+                account_auth = True
+                print("++ Account Authorized ++\n")
+            else:
+                print("!! Invalid details !!\n")
+        else:
+            pass  # That wasn't supposed to happen.
+
+    # ==== Commands Stage ====
+    while True:
+        print("Select command:")
+        mode = select_mode()
+        if mode == MsgType.BALANCE:
+            print("Fetching balance...")
+            amount = request_balance()
+            print(f"Account Balance: ${amount/100:.2f}")
+        elif mode == MsgType.DEPOSIT:
+            amount = input("Enter amount to deposit: $")
+            if not amount.replace(".", "", 1).isdecimal():
+                print("Invalid number format.")
+                continue
+            success = request_deposit(int(float(amount) * 100))
+            print("Deposit " + ("successful." if success else "unsuccessful."))
+        elif mode == MsgType.WITHDRAW:
+            amount = input("Enter amount to withdraw: $")
+            if not amount.replace(".", "", 1).isdecimal():
+                print("Invalid number format.")
+                continue
+            success = request_withdraw(int(float(amount) * 100))
+            print("Withdrawal " + ("successful." if success else "unsuccessful."))
+        elif mode == "EXIT":
+            raise KeyboardInterrupt()
+        else:
+            raise NotImplementedError("This shouldn't be able to happen.")
+except KeyboardInterrupt:
+    print(f"SSL session closing gracefully.")
+    if not wfile.closed:
+        wfile.write(session.build_alert_record(
+            ssl.AlertLevel.FATAL, ssl.AlertType.CloseNotify))
+    quit()
+except ssl.SSLError as e:
+    print(f"[FATAL] (ssl): {e.atype.name} {e.args}")
+    if not wfile.closed:
+        wfile.write(session.build_alert_record(ssl.AlertLevel.FATAL, e.atype))
+    quit(1)
+except BaseException as e:
+    print(f"[FATAL] (unknown {type(e)}): {e.args}")
+    if not wfile.closed:
+        wfile.write(session.build_alert_record(
+            ssl.AlertLevel.FATAL, ssl.AlertType.InternalError))
+    quit(1)

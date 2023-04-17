@@ -5,7 +5,7 @@ from io import BytesIO
 from os import urandom
 
 import shared.rpi_hash as rpi_hash
-import cpp
+# import cpp
 
 def gen_hash_input(to_sign: bytes, is_server: bool = True):
     # The digital signature is then computed over the concatenation of:
