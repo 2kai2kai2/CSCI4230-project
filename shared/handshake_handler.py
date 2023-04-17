@@ -68,7 +68,7 @@ def server_handle_handshake(rfile: BytesIO, wfile: BytesIO, info) -> ssl.Session
     key_share_dh_y_value.fromData(key_share.extension_data)
 
     if key_share_dh_y_value.group == handshake.SupportedGroups.ffdhe8192:
-        generator = keygen.ffdhe2048
+        generator = keygen.ffdhe8192
     else:
         raise ssl.SSLError(ssl.AlertType.HandshakeFailure, "Unsupported supported group sent by client.")
 
@@ -183,7 +183,7 @@ def client_handle_handshake(rfile: BytesIO, wfile: BytesIO, info) -> ssl.Session
     """
     # We need to setup some crypto information before we send the Hello.
     # We will attempt ffdhe8192 first.
-    generator = keygen.ffdhe2048
+    generator = keygen.ffdhe8192
     secret_value = int.from_bytes(urandom(generator.len_bytes), 'big')
     share = generator.compute_dh_Y(secret_value)
     computedKeyPart = handshake.KeyShareEntry(
