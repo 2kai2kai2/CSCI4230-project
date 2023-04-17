@@ -504,7 +504,6 @@ class Certificate:
 
 class CertificateVerify:
     handshake = Handshake(HandshakeType.certificate_verify, -1)
-    handshake = Handshake(HandshakeType.certificate_verify, -1)
 
     def populate(self, signatureScheme: SignatureScheme, signature: int):
         self.signatureScheme = signatureScheme
