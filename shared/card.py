@@ -5,7 +5,7 @@ import random
 from typing import Optional
 import shared.paillier as paillier
 
-def valid_card_num(number: str) -> bool:
+def valid_card_num(number: Optional[str]) -> bool:
     if not isinstance(number, str) or not number.isdecimal() or len(number) != 16:
         return False
     sum: int = 0

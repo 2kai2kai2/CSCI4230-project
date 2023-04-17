@@ -54,11 +54,13 @@ def server_handle_handshake(rfile: BytesIO, wfile: BytesIO, info) -> ssl.Session
     # We first wait for the ClientHello message
     hs = handshake.Handshake()
     header = rfile.read(4)
+    assert header is not None and len(header) == 4
     hs.unmarshal(header)
     if hs.msg_type != handshake.HandshakeType.client_hello:
         raise ssl.SSLError(ssl.AlertType.UnexpectedMsg, "Recieved unexpected message type (should have been client_hello)")
     client_hello = handshake.ClientHello()
     rest = rfile.read(hs.msg_length)
+    assert rest is not None and len(rest) == hs.msg_length
     data = header + rest
     client_hello.unmarshal(data)
 
@@ -111,13 +113,13 @@ def server_handle_handshake(rfile: BytesIO, wfile: BytesIO, info) -> ssl.Session
     if signature_algorithms == None:
         raise ssl.SSLError(ssl.AlertType.HandshakeFailure, "Failed to find signature_algorithms extension.")
     signature_algorithm_list, _ = handshake.unmarshal_list(signature_algorithms.extension_data, 2, 2)
-    signature_algorithm_list = [int.from_bytes(x) for x in signature_algorithm_list]
+    signature_algorithm_list = [int.from_bytes(x, 'big') for x in signature_algorithm_list]
     if not handshake.SignatureAlgorithms.rsa_pss_pss_sha256 in signature_algorithm_list:
         raise ssl.SSLError(ssl.AlertType.HandshakeFailure, "Client does not support desired signature algorithm.")
 
     transcript_hash = sig_hash(transcript)
     to_hash = gen_hash_input(transcript_hash)
-    encrypted_signature = int.from_bytes(sig_alg(to_hash, private, modulus, sig_hash))
+    encrypted_signature = int.from_bytes(sig_alg(to_hash, private, modulus, sig_hash), 'big')
     cert_verify = handshake.CertificateVerify()
     cert_verify.populate(handshake.SignatureScheme.rsa_pss_pss_sha256, encrypted_signature)
 
@@ -127,10 +129,12 @@ def server_handle_handshake(rfile: BytesIO, wfile: BytesIO, info) -> ssl.Session
 
     # Process client certificate
     header = rfile.read(4)
+    assert header is not None and len(header) == 4
     hs.unmarshal(header)
     if hs.msg_type != handshake.HandshakeType.certificate:
         raise ssl.SSLError(ssl.AlertType.UnexpectedMsg, "Recieved unexpected message type (should have been certificate)")
     rest = rfile.read(hs.msg_length)
+    assert rest is not None and len(rest) == hs.msg_length
     packet = header + rest
     client_cert = handshake.Certificate()
     client_cert.unmarshal(packet)
@@ -138,6 +142,7 @@ def server_handle_handshake(rfile: BytesIO, wfile: BytesIO, info) -> ssl.Session
     
     client_public_key = client_cert.public_key
     client_modulus = client_cert.modulus
+    assert client_public_key is not None and client_modulus is not None
 
     # Validate the received modulus against the one provided to us in info.
     # This emulates a CA. As opposed to having a way of validating certificates
@@ -147,10 +152,12 @@ def server_handle_handshake(rfile: BytesIO, wfile: BytesIO, info) -> ssl.Session
 
     # Now, process the client verify
     header = rfile.read(4)
+    assert header is not None and len(header) == 4
     hs.unmarshal(header)
     if hs.msg_type != handshake.HandshakeType.certificate_verify:
         raise ssl.SSLError(ssl.AlertType.UnexpectedMsg, "Recieved unexpected message type (should have been certificate_verify)")
     rest = rfile.read(hs.msg_length)
+    assert rest is not None and len(rest) == hs.msg_length
     packet = header + rest
     cert_verify = handshake.CertificateVerify()
     cert_verify.unmarshal(packet)
@@ -209,12 +216,14 @@ def client_handle_handshake(rfile: BytesIO, wfile: BytesIO, info) -> ssl.Session
     # Note that both of these messages will present as a 'ServerHello'
     hs = handshake.Handshake()
     header = rfile.read(4)
+    assert header is not None and len(header) == 4
     hs.unmarshal(header)
     # Figure out what kind of packet we've received
     if hs.msg_type != handshake.HandshakeType.server_hello:
         raise ssl.SSLError(ssl.AlertType.UnexpectedMsg, "Recieved unexpected message type (should have been server_hello)")
     # We got back a server hello
     rest = rfile.read(hs.msg_length)
+    assert rest is not None and len(rest) == hs.msg_length
     packet = header + rest
     server_hello = handshake.ServerHello()
     server_hello.unmarshal(packet)
@@ -235,10 +244,12 @@ def client_handle_handshake(rfile: BytesIO, wfile: BytesIO, info) -> ssl.Session
 
     # Process certificate
     header = rfile.read(4)
+    assert header is not None and len(header) == 4
     hs.unmarshal(header)
     if hs.msg_type != handshake.HandshakeType.certificate:
         raise ssl.SSLError(ssl.AlertType.UnexpectedMsg, "Recieved unexpected message type (should have been certificate)")
     rest = rfile.read(hs.msg_length)
+    assert rest is not None and len(rest) == hs.msg_length
     packet = header + rest
     cert = handshake.Certificate()
     cert.unmarshal(packet)
@@ -254,10 +265,12 @@ def client_handle_handshake(rfile: BytesIO, wfile: BytesIO, info) -> ssl.Session
 
     # Wait for the server to send their CertificateVerify message!
     header = rfile.read(4)
+    assert header is not None and len(header) == 4
     hs.unmarshal(header)
     if hs.msg_type != handshake.HandshakeType.certificate_verify:
         raise ssl.SSLError(ssl.AlertType.UnexpectedMsg, "Recieved unexpected message type (should have been certificate_verify)")
     rest = rfile.read(hs.msg_length)
+    assert rest is not None and len(rest) == hs.msg_length
     packet = header + rest
     cert_verify = handshake.CertificateVerify()
     cert_verify.unmarshal(packet)
@@ -284,7 +297,7 @@ def client_handle_handshake(rfile: BytesIO, wfile: BytesIO, info) -> ssl.Session
     # Send our certificate verification
     my_transcript_hash = sig_hash(transcript)
     my_to_hash = gen_hash_input(my_transcript_hash)
-    my_encrypted_signature = int.from_bytes(sig_alg(my_to_hash, private, modulus, sig_hash))
+    my_encrypted_signature = int.from_bytes(sig_alg(my_to_hash, private, modulus, sig_hash), 'big')
     cert_verify = handshake.CertificateVerify()
     cert_verify.populate(handshake.SignatureScheme.rsa_pss_pss_sha256, my_encrypted_signature)
 

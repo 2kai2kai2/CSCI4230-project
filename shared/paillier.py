@@ -92,7 +92,7 @@ def keygen(bits=1024) -> tuple[tuple[int, int], int]:
     ----
     A tuple containing:
        - Public key `(g,n)`
-       - Private key `\lambda`
+       - Private key `\\lambda`
     """
     p = 1
     while not primality_test(p):

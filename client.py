@@ -1,3 +1,5 @@
+import my_secrets.client as secret_keys
+import my_secrets.server_public as server_public_info
 from typing import Literal, Union
 from shared.handshake_handler import client_handle_handshake
 import socket
@@ -19,19 +21,20 @@ wfile = conn.makefile('wb', buffering=0)
 
 def fetch_record() -> tuple[ssl.ContentType, bytes]:
     tls_header = rfile.read(5)
+    if tls_header is None or len(tls_header) != 5:
+        raise ConnectionError("Failed to receive expected 5 bytes.")
+    assert tls_header is not None
     content_type = ssl.ContentType(tls_header[0])
     assert tls_header[1:3] == b'\x03\x03'
     content_length = int.from_bytes(tls_header[3:5], 'big')
 
     tls_content = rfile.read(content_length)
+    if tls_content is None or len(tls_content) != content_length:
+        raise ConnectionError("Failed to receive expected record body length.")
     return (content_type, tls_content)
 
 
 # ==== Handshake Stage ====
-
-import my_secrets.client as secret_keys
-import my_secrets.server_public as server_public_info
-
 INFO = {
     "client_public": secret_keys.PUBLIC_KEY,
     "client_private": secret_keys.PRIVATE_KEY,
@@ -256,7 +259,8 @@ try:
         # Send the request with the generated check
         check = gen_encrypted_check(card, paillier.DEFAULT_SERVER_PUBKEY)
         byte_length = math.ceil(check.bit_length() / 8)
-        check_msg = byte_length.to_bytes(3, 'big') + check.to_bytes(byte_length, 'big')
+        check_msg = byte_length.to_bytes(
+            3, 'big') + check.to_bytes(byte_length, 'big')
         request = bytes([MsgType.ACCOUNT_AUTH]) + check_msg + card.to_bytes()
         toSend = session.build_app_record(request)
         wfile.write(toSend)

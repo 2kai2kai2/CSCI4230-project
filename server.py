@@ -34,10 +34,6 @@ class Handler(ssv.StreamRequestHandler):
         tls_content = self.rfile.read(content_length)
         return (content_type, tls_content)
 
-    def handle_handshake(self, tls_content: bytes):
-        # SSL handshake
-        raise NotImplementedError("oopsie!")
-
     def handle_account_auth(self, app_content: bytes) -> bytes:
         """
         Purely application-level
@@ -49,8 +45,8 @@ class Handler(ssv.StreamRequestHandler):
         if app_content[0] != MsgType.ACCOUNT_AUTH:  # Must be account auth message
             return bytes([MsgType.ERROR, AppError.INVALID_STAGE])
         # Extract that check
-        to_read = int.from_bytes(app_content[1:4])
-        check = int.from_bytes(app_content[4:4+to_read])
+        to_read = int.from_bytes(app_content[1:4], 'big')
+        check = int.from_bytes(app_content[4:4+to_read], 'big')
         try:
             card = Card.from_bytes(app_content[4+to_read:])
             self.account = get_account(card)
@@ -78,6 +74,7 @@ class Handler(ssv.StreamRequestHandler):
         ----
         `bytes` object with response message. Application message type should be the same as `app_content` or be `ERROR`
         """
+        assert self.account is not None
         # Accept commands
         if app_content[0] == MsgType.BALANCE:
             if len(app_content) != 1:
@@ -117,7 +114,6 @@ class Handler(ssv.StreamRequestHandler):
     def message_handler(self):
         """
         Waits for a new SSL/TLS record, then calls the appropriate handler.
-        - During handshake: TODO
         - During user authentication: uses application-level `handle_account_auth`
         - Otherwise: uses application-level `handle_routine`
 
@@ -127,14 +123,9 @@ class Handler(ssv.StreamRequestHandler):
            - `NotImplementedError` where not implemented.
         """
         content_type, tls_content = self.fetch_record()
-
         if self.session is None:
-            # First stage: Handshake
-            if content_type is ssl.ContentType.Handshake:
-                self.handle_handshake(tls_content)
-                return
-            raise NotImplementedError(
-                "We don't know what to do with non-handshake messages at this stage.")
+            raise ssl.SSLError(ssl.AlertType.InternalError,
+                               "message_handler should not be called before session is established.")
         elif self.account is None:
             # Second stage: user authentication
             if content_type is ssl.ContentType.Application:
@@ -177,14 +168,16 @@ class Handler(ssv.StreamRequestHandler):
                 self.message_handler()
         except ssl.SSLError as e:
             print(f"[FATAL] (ssl): {e.atype.name} {e.args}")
+            if self.wfile.closed or self.session is None:
+                return
             self.wfile.write(self.session.build_alert_record(
                 ssl.AlertLevel.FATAL, e.atype))
-            return
         except BaseException as e:
             print(f"[FATAL] (unknown {type(e)}): {e.args}")
+            if self.wfile.closed or self.session is None:
+                return
             self.wfile.write(self.session.build_alert_record(
                 ssl.AlertLevel.FATAL, ssl.AlertType.InternalError))
-            return
 
     def finish(self):
         super().finish()

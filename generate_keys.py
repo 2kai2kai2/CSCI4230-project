@@ -2,9 +2,9 @@
 import subprocess
 import os
 import sys
-from base64 import b64decode
-from cryptography import x509
-from cryptography.hazmat.backends import default_backend
+#from base64 import b64decode
+#from cryptography import x509
+#from cryptography.hazmat.backends import default_backend
 import re
 
 sys.set_int_max_str_digits(int(10e8))

@@ -43,7 +43,7 @@ def marshal_list_of_objects(arr: list[int], elementLength: int = 1, maxLengthInB
     return ret
 
 
-def unmarshal_list(msg: bytes, elementLength: int = 1, lengthFieldSize: int = 2, start: int = 0) -> Union[list, int]:
+def unmarshal_list(msg: bytes, elementLength: int = 1, lengthFieldSize: int = 2, start: int = 0) -> tuple[list, int]:
     count = int.from_bytes(msg[start:start + lengthFieldSize], 'big')
     ret = []
     for i in range(count // elementLength):
