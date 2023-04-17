@@ -7,7 +7,7 @@ from shared.protocol import *
 from getkey import getkey, keys
 from sys import exit
 from shared.port import PORT
-from shared.paillier import DEFAULT_N, DEFAULT_G
+import shared.paillier as paillier
 import math
 
 
@@ -252,7 +252,7 @@ try:
     while not account_auth:
         card = input_card()
         # Send the request with the generated check
-        check = gen_encrypted_check(card, DEFAULT_N, DEFAULT_G)
+        check = gen_encrypted_check(card, paillier.DEFAULT_SERVER_PUBKEY)
         byte_length = math.ceil(check.bit_length() / 8)
         check_msg = byte_length.to_bytes(3, 'big') + check.to_bytes(byte_length, 'big')
         request = bytes([MsgType.ACCOUNT_AUTH]) + check_msg + card.to_bytes()

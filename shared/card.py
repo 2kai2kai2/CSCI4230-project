@@ -3,7 +3,7 @@ This file contains shared implementation for the communication and verification 
 """
 import random
 from typing import Optional
-
+import shared.paillier as paillier
 
 def valid_card_num(number: str) -> bool:
     if not isinstance(number, str) or not number.isdecimal() or len(number) != 16:
@@ -104,19 +104,31 @@ class Card:
         return Card(card_num, cvc, month, year, pin)
 
 
-def validate_encrypted_check(card: Card, g: int, p: int, q: int, C: int) -> bool:
-    from shared.paillier import decrypt
+def validate_encrypted_check(card: Card, C: int, paillier_pubkey: tuple[int, int], paillier_privkey: int) -> bool:
+    """
+    Parameters
+    ----
+       - `card`: Card to check
+       - `C`: cryptographic checksum produced by `gen_encrypted_check`
+       - `paillier_pubkey`: `(g, n)`
+       - `paillier_privkey`: `\lambda`
+    """
     expected = int(card.number) + card.cvc + card.pin + card.month + card.year
-    M = decrypt(C, p, q, g)
+    M = paillier.decrypt(C, paillier_pubkey, paillier_privkey)
     return M == expected
 
-def gen_encrypted_check(card: Card, n: int, g: int) -> int:
-    from shared.paillier import encrypt, summation
+def gen_encrypted_check(card: Card, paillier_pubkey: tuple[int, int]) -> int:
+    """
+    Parameters
+    ----
+       - `card`: Card to check
+       - `paillier_pubkey`: `(g, n)`
+    """
     # Encrypt the number, cvc, pin, month, and year
-    _num = encrypt(int(card.number), n, g)
-    _cvc = encrypt(card.cvc, n, g)
-    _pin = encrypt(card.pin, n, g)
-    _mth = encrypt(card.month, n, g)
-    _yar = encrypt(card.year, n, g)
-    checksum = summation([_num, _cvc, _pin, _mth, _yar], n)
+    _num = paillier.encrypt(int(card.number), paillier_pubkey)
+    _cvc = paillier.encrypt(card.cvc, paillier_pubkey)
+    _pin = paillier.encrypt(card.pin, paillier_pubkey)
+    _mth = paillier.encrypt(card.month, paillier_pubkey)
+    _yar = paillier.encrypt(card.year, paillier_pubkey)
+    checksum = paillier.homomorphic_summation([_num, _cvc, _pin, _mth, _yar], paillier_pubkey[1])
     return checksum

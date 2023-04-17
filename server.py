@@ -6,7 +6,7 @@ from shared.protocol import MsgType, AppError
 from shared.card import Card, validate_encrypted_check
 from shared.handshake_handler import server_handle_handshake
 from shared.port import PORT
-from shared.paillier import DEFAULT_G, DEFAULT_SERVER_SECRET_P, DEFAULT_SERVER_SECRET_Q
+import shared.paillier as paillier
 
 
 import my_secrets.server as secret_keys
@@ -16,6 +16,7 @@ INFO = {
     "server_private": secret_keys.PRIVATE_KEY,
     "server_modulus": secret_keys.P * secret_keys.Q
 }
+
 
 class Handler(ssv.StreamRequestHandler):
     """
@@ -52,12 +53,13 @@ class Handler(ssv.StreamRequestHandler):
             card = Card.from_bytes(app_content[4+to_read:])
             self.account = get_account(card)
             # Check the card with the generated checksum
-            ok = validate_encrypted_check(card, DEFAULT_G, DEFAULT_SERVER_SECRET_P, DEFAULT_SERVER_SECRET_Q, check)
-            if not ok:
-                print("[WARN] Client failed the card checksum")
-                return bytes([MsgType.ERROR, AppError.BAD_MESSAGE])
+            ok = validate_encrypted_check(
+                card, check, paillier.DEFAULT_SERVER_PUBKEY, paillier.DEFAULT_SERVER_PRIVKEY)
             if ok:
                 print("[LOG] Client passed the card checksum")
+            else:
+                print("[WARN] Client failed the card checksum")
+                return bytes([MsgType.ERROR, AppError.BAD_MESSAGE])
         except AttemptsExceededError:
             self.close = True
             return bytes([MsgType.ERROR, AppError.ATTEMPTS_EXCEEDED])
@@ -164,7 +166,8 @@ class Handler(ssv.StreamRequestHandler):
 
     def handle(self):
         try:
-            self.session = server_handle_handshake(self.rfile, self.wfile, INFO)
+            self.session = server_handle_handshake(
+                self.rfile, self.wfile, INFO)
             if self.session is None:
                 raise ssl.SSLError(ssl.AlertType.HandshakeFailure,
                                    "Handshake was unsuccessful.")
