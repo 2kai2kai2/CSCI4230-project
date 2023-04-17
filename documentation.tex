@@ -37,6 +37,9 @@
     \end{center}
 \end{titlepage}
 
+\tableofcontents
+
+\newpage
 \section{Overview}
 This project implements a bank ATM system, allowing users to deposit, withdraw, and view their balance through an ATM client.
 Due to the lack of a physical machine, no real cash can be exchanged, but we assume for our purposes that this occurs if the ATM client is not an impostor. \\
@@ -361,5 +364,551 @@ so too will five attempts with an incorrect card number. This error is fatal.
 A number of accounts are generated when the database is started.
 Many of these randomize their card fields.
 See \hyperref[sec:ProvidedAccounts]{above$^\uparrow$} for the known account details.
+
+\newpage
+\section{Provided Server Instance}
+For the convenience of the testing and accessibility, a Ubuntu Server Node running 'Server.py is provided.
+\begin{center}
+    \begin{tabular}{r|l}
+        URL     & \textbf{bank.b-rad.solutions} \\
+        Port             & \textbf{8000}              \\
+
+    \end{tabular}
+\end{center}
+The servers Firewall Will block all traffic accept TCP traffic on application port.
+
+\subsection{Configuring Server Address}
+In 'client.py' change the first non-import line 'conn = ... ' to the desired URL or IP address as the first arg. Ensure that 'shared/port.py' is correct
+
+\begin{center}
+    \code{conn = socket.create\_connection(("localhost", PORT))}
+\end{center}
+
+\newpage
+\section{File Structure Overview}
+
+\begin{center}
+       \includegraphics[width=0.7\columnwidth]{media/filetree.png}
+\end{center}
+
+\newpage
+\subsection{Root Directory}
+\subsubsection{client.py}
+Main Run time file for the program on client side.
+\begin{enumerate}
+    \item \textbf{fetch\_record()}
+    CLI interface for the client to input card details
+    \item \textbf{input\_card\_legacy()}
+    CLI interface for the client to input card details
+    \item \textbf{input\_card()}
+    CLI interface for the client to input card details
+    \item \textbf{select\_mode\_legacy()}
+    CLI interface for the client to select mode of operation
+    \item \textbf{select\_mode()}
+    CLI interface for the client to select mode of operation
+    \item \textbf{request\_balance()}
+    This will retrieve the user's account balance from the bank's servers database and return it to the user.
+    \item \textbf{request\_deposit()}
+    This will send a request to the servers database for a deposit
+    \item \textbf{request\_withdraw()}
+    This will send a request to the servers database for a withdraw
+
+ or invalid account information. It may also update the transaction history for the user's account to reflect the withdrawal.
+\end{enumerate}
+
+\subsubsection{database.py}
+Family of functions to interact with the data of the bank on the server side.
+\begin{enumerate}
+    \item \textbf{balance()}
+    This will retrieve the user's account balance and return it to the user.
+    \item \textbf{deposit()}
+    This will add the deposit amount to the user's account balance and update the account balance accordingly.
+    The function would then return a message indicating the successful deposit and the updated account balance, or an error message if the deposit could not be completed.
+    \item \textbf{withdraw()}
+    This will check if the user has sufficient funds in their account to cover the withdrawal amount.
+    If the user has enough funds, the function would subtract the withdrawal amount from the user's account balance and update the account balance accordingly.
+    The function would then return a message indicating the successful withdrawal and the updated account balance, or an error message if the withdrawal could not be completed due to insufficient funds.
+    \item \textbf{\_add\_account()}
+    the function is called with the account number, CCV number, and Exp. Date. If the operation is successful, the function returns a success flag and a message indicating that the account was added to the database. If there is an error, the function returns a failure flag and an appropriate error message
+    \item \textbf{get\_account()}
+    Retrieves info on a user account.
+\end{enumerate}
+
+\subsubsection{documentation.pdf}
+This PDF!
+
+\subsubsection{generate\_keys.py}
+SSH (Secure Shell) key generation involves creating a public and private key pair that can be used for authentication and encryption in secure communication between two devices.
+
+The key generation process usually involves using a program such as ssh-keygen to create a unique key pair.
+The public key can be shared with anyone, while the private key is kept secret and stored on the device that will be used to establish the secure connection.
+
+The key pair is created using a mathematical algorithm, typically either RSA or DSA, which generates a unique set of numbers that are used to encrypt and decrypt messages.
+
+\subsubsection{requirements.txt}
+The requirements.txt file in Python is a text file that lists all the Python packages and their versions that are required
+to run a Python project or application.
+The file contains a list of dependencies that need to be installed before running the application or project.
+
+The format of a requirements.txt file is simple: each line contains the name of a package and its version number, separated by an == sign.
+To install the dependencies listed in a requirements.txt file, one can use the command pip install -r requirements.txt
+
+\subsubsection{server.py}
+Main Run time file for the program the Server side.
+\begin{enumerate}
+    \item \textbf{fetch\_record()}
+    \item \textbf{handle\_handshake()}
+    \item \textbf{handle\_account\_auth()}
+    \item \textbf{handle\_routine()}
+    \item \textbf{setup()}
+    \item \textbf{message\_handler()}
+    \item \textbf{handle()}
+    \item \textbf{finish()}
+\end{enumerate}
+
+\newpage
+\subsection{lib Directory}
+PyBind is a C++ library that provides a simple and lightweight way to expose C++ functions and classes to Python.
+It allows you to write Python modules in C++ by generating Python bindings from C++ code.
+PyBind is designed to be easy to use and offers a range of features to make it flexible and efficient.
+
+With PyBind, you can easily expose C++ classes, functions, and objects to Python, and you can call Python code from C++ as well.
+PyBind offers a number of features that make it easy to work with both languages, such as automatic type conversion and the ability to use Python classes and objects in C++ code.
+
+\subsubsection{aes.h}
+AES, or Advanced Encryption Standard, is a widely used symmetric encryption algorithm.
+It was established by the National Institute of Standards and Technology (NIST) in 2001 as a replacement for the older Data Encryption Standard (DES).
+
+AES uses a block cipher algorithm, which means that it divides the data to be encrypted into fixed-length blocks and applies the encryption algorithm to each block individually.
+The standard block size for AES is 128 bits, but it can also be used with block sizes of 192 and 256 bits.
+
+AES is a symmetric encryption algorithm, which means that the same key is used for both encryption and decryption.
+The key length can be 128, 192, or 256 bits, and the longer the key, the stronger the encryption.
+
+The AES encryption algorithm consists of several rounds of substitution and permutation operations.
+Each round involves a substitution step, where each byte of the block is replaced with a different byte from a substitution table, and a permutation step, where the bytes are rearranged according to a fixed pattern.
+
+Overall, AES is considered to be a highly secure encryption algorithm and is widely used in various applications, including electronic banking, digital signatures, and secure communications.
+\subsubsection{aes\_constants.h}
+The AES constants refer to the pre-computed values used in the AES algorithm.
+These values are generated from the irreducible polynomial x\^8 + x\^4 + x\^3 + x + 1, which is used in the finite field arithmetic operations of AES.
+
+The AES constants consist of four lookup tables, each with 256 32-bit words:
+
+The S-box: This is a substitution table used in the byte substitution step of the AES algorithm. It maps each 8-bit input to a corresponding 8-bit output.
+
+The inverse S-box: This is the inverse of the S-box and is used in the decryption process of the AES algorithm.
+
+The Rcon table: This is a table of round constants used in the key schedule of the AES algorithm. There are 10, 12, or 14 round constants depending on the key size used.
+
+The Galois table: This is a lookup table used in the mixColumns step of the AES algorithm. It is used to multiply columns of bytes in the finite field arithmetic.
+
+These AES constants are precomputed and stored in memory to speed up the encryption and decryption processes. They are an essential part of the AES algorithm and are used in all implementations of the algorithm.
+\subsubsection{aes\_test.cpp}
+THis File shows AES works out side of the banking application
+\subsubsection{cpplib.cpp}
+Creates Links between Cpp and Python
+\subsubsection{setup.py}
+Creates Links between Cpp and Python
+
+\newpage
+\subsection{my\_secrets Directory}
+A directory called \"my\_secrets\" that stores a public key for a client and a server is a folder on a computer system that contains two files, one for the client's public key and the other for the server's public key.
+The directory may be protected by appropriate access controls, to ensure that only authorized users or processes can access the files within it.
+The files containing the public keys are used to establish secure communication between the client and server, through methods such as SSL/TLS encryption, SSH connections, or other secure protocols.
+The directory must be located in a specific location on the file system.
+
+\newpage
+\subsection{shared Directory}
+    A directory called "shared" that stores helper functions for both a client and a server is a folder on a computer system that contains files with code that can be used by both the client and the server.
+    These files might include common utility functions, configuration files, or other shared resources that are used by both the client and server applications.
+    The directory may be organized in a specific way, such as by function or module, to make it easy for developers to find the resources they need.
+The shared directory must be located in a specific location on the file system, such as in the root directory of the application, or in a dedicated directory for shared resources.
+The directory may also be subject to appropriate access controls, to ensure that only authorized users or processes can access the files within it.
+The purpose of the shared directory is to promote code reuse and to make it easier to maintain both the client and server applications by avoiding duplicating code that is common to both.
+
+\subsubsection{card.py:} This Python file contains a class or function that generates and handles digital Creit cards.
+\begin{enumerate}
+    \item \textbf{valid\_card\_num()} Check to make sure a user entered card number meets all the requirements
+    \begin{enumerate}
+        \item card is decimal or number
+        \item card lengh is 16
+        \item $0 /\leq CVV \leq 1000$
+        \item $1 \leq Month \leq 12$
+        \item $2023 \leq year$
+\end{enumerate}
+\end{enumerate}
+\subsubsection{card\_test.py:} This is a Python test file that tests the functionality and features of the namecard.py file.
+It includes various test cases that ensure the name card is generated and handled correctly.
+
+\subsubsection{handshake\_handler.py:} This Python file contains a class or function that handles handshakes between two entities or systems.
+Handshakes are a series of communications that establish a connection or exchange information.
+\begin{enumerate}
+    \item \textbf{gen\_hash\_input()}
+    \item \textbf{from\_shared\_secret()}
+    \item \textbf{server\_handle\_handshake()}
+    \item \textbf{client\_handle\_handshake()}
+\end{enumerate}
+
+\subsubsection{keygen.py:} This Python file contains a function or class that generates cryptographic keys used to encrypt and decrypt data, which is essential for secure communication and data storage.
+Diffie-Hellman is a cryptographic algorithm used to establish a shared secret between two parties over an insecure communication channel.
+It was invented by Whitfield Diffie and Martin Hellman in 1976 and is widely used today in various protocols such as TLS, SSH, and VPNs.
+The main idea behind the Diffie-Hellman algorithm is to use the properties of modular arithmetic to enable two parties to agree on a shared secret without actually exchanging it directly over the insecure channel.
+The algorithm involves the following steps:
+\begin{center}
+\begin{enumerate}
+    \item First, the two parties, Alice and Bob, agree on a large prime number and a primitive root modulo that prime.
+    \item These values are publicly known and can be shared over the insecure channel.
+    \item Alice chooses a secret number, a, and computes A = $g^a$ mod p, where g is the primitive root and p is the prime number.
+    \item She sends A to Bob over the insecure channel.
+    \item Bob chooses a secret number, b, and computes B = g\^b mod p. He sends B to Alice over the insecure channel.
+    \item Alice computes the shared secret as S = B\^a mod p.
+    \item Bob computes the shared secret as S = A\^b mod p.
+    \item The shared secret, S, can now be used as a symmetric key for encryption and decryption of messages between Alice and Bob.
+\end{enumerate}
+
+\end{center}
+
+One of the main advantages of the Diffie-Hellman algorithm is that it provides perfect forward secrecy, which means that even if an attacker were to obtain the private keys of Alice or Bob at some later time, they would not be able to decrypt past communications because the shared secret was never transmitted over the insecure channel
+
+\subsubsection{paillier.py:} This Python file contains a class or function that implements the Paillier cryptosystem, a public-key cryptosystem used for secure data encryption.
+Paillier is a public-key cryptosystem invented by Pascal Paillier in 1999.
+It is based on the computational difficulty of the decisional composite residuosity assumption (DCRA) problem, which is closely related to the RSA problem.
+The Paillier cryptosystem is considered a partially homomorphic encryption scheme, which means that it supports both additive and multiplicative homomorphic operations on ciphertexts.
+The Paillier cryptosystem uses two large prime numbers to generate a public key and a private key.
+The encryption process involves raising the plaintext to a randomly generated power modulo the product of two prime numbers, and then multiplying the result by another randomly generated value raised to the product of the prime numbers. The decryption process involves raising the ciphertext to a power modulo the product of the prime numbers and then using a modular inverse to recover the original plaintext.
+One of the unique features of the Paillier cryptosystem is its homomorphic properties, which allow for computations to be performed on ciphertexts without decrypting them first.
+Specifically, the system supports both additive and multiplicative homomorphic operations, meaning that ciphertexts can be added together or multiplied together and the resulting ciphertext will decrypt to the sum or product of the original plaintexts.
+
+\begin{enumerate}
+    \item \textbf{genkeys()}The Paillier cryptosystem uses a public key and a private key, which are generated as follows:
+
+Public Key Generation:
+\begin{enumerate}
+    \item Choose two large prime numbers p and q, such that p and q are of equal length in bits and are kept secret.
+Compute the product of the two primes, n = p*q, which is used as the modulus for both the public and private keys.
+    \item Compute the Carmichael's totient function of n, $\lambda(n) = lcm(p-1, q-1)$, which is used to compute the private key.
+    \item Choose a random integer g that is relatively prime to n\^2. This is the generator of the cyclic group of integers modulo n.
+    \item Compute the public key (n, g), which is made public.
+\end{enumerate}
+Private Key Generation:
+\begin{enumerate}
+    \item Choose a random integer L, such that L is relatively prime to $\lambda(n)$.
+    \item Compute the private key $\mu = L^{(-1)} $mod$ \lambda(n)$, where $L^{(-1)}$ is the modular multiplicative inverse of L modulo $\lambda(n)$.
+\end{enumerate}
+Once the public and private keys are generated, they can be used for encryption and decryption operations.
+It is important to note that the security of the Paillier cryptosystem relies on the fact that it is difficult to compute the discrete logarithm of g modulo n\^2, and the decisional composite residuosity assumption is true for n.
+
+\item  \textbf{encrypt()}
+\item  \textbf{decrypt()}
+
+    \item  \textbf{summation()}
+    Adds all the chpiertext in list together
+\end{enumerate}
+
+\subsubsection{paillierTest.py:} This is a Python test file that tests the functionality and features of the paillier.py file.
+It includes various test cases that ensure the Paillier cryptosystem is implemented correctly.
+
+\subsubsection{port.py:} This Python file contains a class that manages network ports, which are used to establish connections between two entities or systems over a network.
+
+\subsubsection{protocol.py:} This Python file contains a class or function that implements a communication protocol, a set of rules and standards that govern how data is exchanged between two entities or systems.
+
+\subsubsection{rpi\_hash.py:} This Python file contains a class or function that implements a hashing algorithm, used to convert data into a fixed-length string of characters.
+\begin{enumerate}
+    \item \textbf{SHA1():}
+    SHA-1 (Secure Hash Algorithm 1) is a cryptographic hash function that was developed by the United States National Security Agency (NSA) and published as a federal standard in 1995. SHA-1 generates a fixed-sized output of 160 bits, which is typically represented as a 40-digit hexadecimal number.
+SHA-1 takes an input message of any length and produces a fixed-length output that is unique to that input. This makes SHA-1 useful for verifying the integrity of data, as even a small change in the input message will result in a completely different hash value.
+However, SHA-1 has been found to be vulnerable to collision attacks, where two different input messages can produce the same hash value. As a result, it is no longer considered to be a secure cryptographic hash function and has been deprecated in favor of newer, stronger algorithms such as SHA-256 and SHA-3.
+Despite its weaknesses, SHA-1 is still used in some legacy systems and protocols. However, it is recommended that any new systems and applications use stronger and more secure hash functions.
+    \item \textbf{SHA256():}
+    SHA-256 (Secure Hash Algorithm 256) is a cryptographic hash function that is widely used for data integrity and authentication purposes. It is part of the SHA-2 family of hash functions, which were designed by the National Security Agency (NSA) and published by the National Institute of Standards and Technology (NIST) in 2001.
+Like other cryptographic hash functions, SHA-256 takes an input message of any length and produces a fixed-length output of 256 bits. The output is typically represented as a 64-digit hexadecimal number.
+SHA-256 is a stronger hash function than its predecessor, SHA-1, and is less vulnerable to collision attacks.
+It is also faster and more efficient than some other hash functions, such as SHA-512 and Whirlpool.
+SHA-256 is widely used in many applications, including digital signatures, password storage, and blockchain technology.
+It is also used as a component in other cryptographic protocols, such as Transport Layer Security (TLS) and Secure Sockets Layer (SSL).
+Overall, SHA-256 is considered to be a secure and reliable cryptographic hash function for a wide range of applications.
+    \item \textbf{SHA384():}
+    SHA-384 is a cryptographic hash function that belongs to the SHA-2 family of hash functions, which were designed by the National Security Agency (NSA) and published by the National Institute of Standards and Technology (NIST) in 2001.
+SHA-384 is similar to SHA-256, but produces a longer output of 384 bits.
+It uses the same basic algorithm as SHA-256, but with more rounds of processing and a larger initial hash value.
+Like other hash functions, SHA-384 takes an input message of any length and produces a fixed-length output.
+The output is typically represented as a 96-digit hexadecimal number.
+SHA-384 provides a higher level of security than SHA-256, as it has a larger output size and uses more rounds of processing.
+It is particularly useful in applications where stronger security is required, such as in digital signatures and key derivation.
+However, SHA-384 is also slower and less efficient than SHA-256, due to its longer output size and more complex processing.
+As a result, it may not be suitable for applications where speed and efficiency are important.
+Overall, SHA-384 is a secure and reliable cryptographic hash function that can provide a higher level of security than SHA-256 in certain applications.
+However, it should be used carefully, taking into consideration its slower speed and larger output size.
+    \item \textbf{HMAC():}
+    HMAC (short for \"keyed-hash message authentication code\") is a type of message authentication code (MAC) that involves a cryptographic hash function and a secret key.
+    HMAC is designed to verify the authenticity and integrity of a message, ensuring that it has not been altered or tampered with during transmission.
+HMAC works by taking a message and a secret key as input and applying a cryptographic hash function (such as SHA-256 or SHA-512) to them.
+The resulting hash value is then combined with the secret key again and hashed again to produce the final HMAC value.
+HMAC is widely used in various security protocols and applications, including secure email, secure remote access, and secure web browsing.
+It provides a simple and efficient way to verify the authenticity and integrity of messages without requiring a secure channel for communication.
+\end{enumerate}
+
+
+\subsubsection{rpi\_ssl.py:} This Python file contains a class or function that implements the SSL (Secure Sockets Layer) protocol used to establish secure connections between two entities or systems over a network.
+
+\subsubsection{rpi\_ssl\_test.py:} This is a Python test file that tests the functionality and features of the rpi\_ssl.py file.
+It includes various test cases that ensure the SSL protocol is implemented correctly.
+
+\subsubsection{rsassa\_pss.py:} This Python file contains a class or function that implements the RSASSA-PSS digital signature algorithm, used to create and verify digital signatures.
+
+\begin{center}
+    \begin{enumerate}
+        \item \textbf{MGF1}
+        MGF1 (Message Digest with a Fixed-length output) is a hash function that produces a fixed-length hash value. It was originally proposed in 1999 by Ronald Rivest as an alternative to the SHA-1 hash function, which was later found to be vulnerable to collision attacks.
+
+The MGF1 hash function is based on a pseudorandom function (PRF) that uses a secret key and a seed value to produce a random output. The PRF is then used to produce a hash value by iteratively applying the function to the input data.
+
+The MGF1 algorithm has several advantages over other hash functions, including its simplicity, speed, and resistance to collision attacks. However, it is not as widely used as some other hash functions, such as SHA-2 and SHA-3.
+
+MGF1 is often used in conjunction with other cryptographic algorithms, such as RSA\-OAEP (Optimal Asymmetric Encryption Padding), which uses MGF1 to generate a random mask for data encryption. It is also used in the PKCS\#1 standard for RSA cryptography and in some digital signature schemes.
+    \end{enumerate}
+\end{center}
+
+\subsubsection{rsassa\_pss\_test.py:} This is a Python test file that tests the functionality and features of the rsassa\_pss.py file.
+It includes various test cases that ensure the RSASSA-PSS algorithm is implemented correctly.
+
+\subsubsection{tls\_handshake.py:} This Python file contains a class or function that implements the TLS (Transport Layer Security) protocol handshake process, used to establish secure connections between two entities or systems over a network.
+
+\subsubsection{tls\_handshake\_test.py:}
+This is a Python test file that tests the functionality and features of the tls\_handshake.py file.
+It includes various test cases that ensure the TLS handshake process is implemented correctly.
+
+\subsubsection{tls\_handshake\_test2.py:}
+This is another Python test file that tests the functionality and features of the tls\_handshake.py file, with additional test cases not included in tls\_handshake\_test.py.
+
+\newpage
+\section{The Transport Layer Security (TLS) Protocol Version 1.3}
+This project is adapted from TLS 1.3 spec, RFC 8446. This section will overview the protocol and any changes to implmentation makes to it.
+
+\subsection{Protocol Overview}
+The cryptographic parameters used by the secure channel are produced
+   by the TLS handshake protocol.  This sub-protocol of TLS is used by
+   the client and server when first communicating with each other.  The
+   handshake protocol allows peers to negotiate a protocol version,
+   select cryptographic algorithms, authenticate each other,
+   and establish shared secret keying material.  Once the handshake is
+   complete, the peers use the established keys to protect the
+   application-layer traffic.
+
+   A failure of the handshake or other protocol error triggers the
+   termination of the connection
+
+   \subsubsection{Message Flow for Full TLS Handshake}
+   \begin{center}
+   The handshake can be thought of as having three phases (indicated in
+   the diagram below)
+       \includegraphics[width=1.1\columnwidth]{media/overview.png}
+   \end{center}
+
+
+    \begin{enumerate}
+        \item Key Exchange: Establish shared keying material and select the
+      cryptographic parameters.  Everything after this phase is
+      encrypted.
+      \item Server Parameters: Establish other handshake parameters
+      (whether the client is authenticated, application-layer protocol
+      support, etc.).
+      \item Authentication: Authenticate the server (and, optionally, the
+      client) and provide key confirmation and handshake integrity.
+    \end{enumerate}
+
+
+The server then sends two messages to establish the Server
+   Parameters:
+\begin{enumerate}
+    \item \textbf{EncryptedExtensions:}  responses to ClientHello extensions that are
+      not required to determine the cryptographic parameters, other than
+      those that are specific to individual certificates.
+    \item \textbf{CertificateRequest:}  if certificate-based client authentication is
+      desired, the desired parameters for that certificate. These Params will be deatailed in a later section
+\end{enumerate}
+
+   Finally, the client and server exchange Authentication messages.  TLS
+   uses the same set of messages every time that certificate-based
+   authentication is needed. Specifically:
+\begin{enumerate}
+    \item \textbf{Certificate:}  The certificate of the endpoint and any per-certificate
+      extensions.  This message is omitted by the server if not
+      authenticating with a certificate and by the client if the server
+      did not send CertificateRequest (thus indicating that the client
+      should not authenticate with a certificate).
+    \item \textbf{CertificateVerify:}  A signature over the entire handshake using the
+      private key corresponding to the public key in the Certificate
+      message.  This message is omitted if the endpoint is not
+      authenticating via a certificate.
+    \item  \textbf{Finished:}  A MAC (Message Authentication Code) over the entire
+      handshake.  This message provides key confirmation, binds the
+      endpoint's identity to the exchanged keys, and in PSK mode also
+      authenticates the handshake.
+\end{enumerate}
+
+   Upon receiving the server's messages, the client responds with its
+   Authentication messages, namely Certificate and CertificateVerify (if
+   requested), and Finished.
+
+   At this point, the handshake is complete, and the client and server
+   derive the keying material required by the record layer to exchange
+   application-layer data protected through authenticated encryption.
+   Application Data MUST NOT be sent prior to sending the Finished
+   message.  Note that while the server may send Application Data prior
+   to receiving the client's Authentication messages, any data sent
+   at that point is, of course, being sent to an unauthenticated peer.
+
+
+\subsection{Handshake Structures}
+Messages are stored as a struct that is flattened and reassembled on the other side of the connection. Structs are represented as Python Classes.
+\subsubsection{struct ClientHello}
+When a client first connects to a server, it is REQUIRED to send the
+   ClientHello as its first TLS message.  The client will also send a
+   ClientHello when the server has responded to its ClientHello with a
+   HelloRetryRequest.
+
+Because TLS 1.3 forbids renegotiation, if a server has negotiated
+   TLS 1.3 and receives a ClientHello at any other time, it MUST
+   terminate the connection with an unexpected\_message alert.
+
+   If a server established a TLS connection with a previous version of
+   TLS and receives a TLS 1.3 ClientHello in a renegotiation, it MUST
+   retain the previous protocol version.  In particular, it MUST NOT
+   negotiate TLS 1.3.
+
+     Structure of this message:
+
+\begin{center}
+       \includegraphics[width=1.1\columnwidth]{media/ClientHello.png}
+\end{center}
+
+
+     After sending the ClientHello message, the client waits for a
+   ServerHello or HelloRetryRequest message.  If early data is in use,
+   the client may transmit early Application Data while
+   waiting for the next handshake message.
+
+
+\subsubsection{struct ServerHello}
+The server will send this message in response to a ClientHello
+   message to proceed with the handshake if it is able to negotiate an
+   acceptable set of handshake parameters based on the ClientHello.
+\begin{center}
+       \includegraphics[width=1.1\columnwidth]{media/ServerHello.png}
+\end{center}
+
+\subsubsection{struct Hello Retry Request}
+The server will send this message in response to a ClientHello
+   message if it is able to find an acceptable set of parameters but the
+   ClientHello does not contain sufficient information to proceed with
+   the handshake.  The HelloRetryRequest has the same format as a ServerHello message,
+   so it is hard coded in the implementation.
+
+\subsubsection{struct Extensions}
+A number of TLS messages contain tag-length-value encoded extensions
+   structures.
+
+\begin{center}
+       \includegraphics[width=0.8\columnwidth]{media/Extenson.png}
+\end{center}
+
+Here:
+\begin{center}
+    \begin{enumerate}
+        \item "extension\_type" identifies the particular extension type.
+        \item "extension\_data" contains information specific to the particular
+      extension type.
+    \end{enumerate}
+\end{center}
+
+\subsubsection{struct Finshed}
+   The Finished message is the final message in the Authentication
+   Block.  It is essential for providing authentication of the handshake
+   and of the computed keys.
+
+   Recipients of Finished messages MUST verify that the contents are
+   correct and if incorrect MUST terminate the connection with a
+   decrypt\_error alert.
+
+   Once a side has sent its Finished message and has received and
+   validated the Finished message from its peer, it may begin to send
+   and receive Application Data over the connection.
+
+\begin{center}
+       \includegraphics[width=1.1\columnwidth]{media/Finshed.png}
+\end{center}
+
+\subsection{Transcript Hash}
+   Many of the cryptographic computations in TLS make use of a
+   transcript hash.  This value is computed by hashing the concatenation
+   of each included handshake message, including the handshake message
+   header carrying the handshake message type and length fields, but not
+   including record layer headers.  I.e., This is done with SHA256//
+
+    Transcript-Hash(M1, M2, ... Mn) = Hash(M1 $||$ M2 $||$ ... $||$ Mn)
+
+\subsection{Signature Algorithms: RSASSA-PSS}
+   RSASSA-PSS (RSA Signature Scheme with Appendix - Probabilistic Signature Scheme) is a digital signature scheme that combines the RSA algorithm with probabilistic methods for added security. It was introduced in 2002 as an enhancement to the older RSA-PKCS\#1 v1.5 signature scheme.
+
+In RSASSA-PSS, a hash function is first applied to the message to be signed to produce a fixed-length digest. The digest is then padded with random bits to a predetermined length, and the resulting padded digest is used as the message input to the RSA signing algorithm. The RSA algorithm then produces a signature that is appended to the message. The probabilistic padding ensures that the same message will produce different signatures each time it is signed, making the scheme resistant to certain types of attacks.
+
+The scheme also includes a salt value that is used to further randomize the padding, making it even more difficult for attackers to forge a signature. The salt value is included in the signature and can be verified by the recipient to ensure that the signature is authentic.
+
+RSASSA-PSS is considered to be more secure than the older RSA-PKCS\#1 v1.5 signature scheme, as it provides better protection against certain types of attacks such as chosen-message attacks and key-recovery attacks. It is widely used in modern cryptography applications, including SSL/TLS, SSH, and digital certificates.
+
+\subsubsection{Signature Generation Operation}
+\begin{center}
+       \includegraphics[width=1.1\columnwidth]{media/RSASSA-SIGN.png}
+\end{center}
+
+
+\subsubsection{Signature Verification Operation}
+\begin{center}
+       \includegraphics[width=1.1\columnwidth]{media/RSASSA-VERIFY.png}
+\end{center}
+
+
+\subsection{Certificates}
+%\subsubsection{Server Certificate Selection}
+
+%\subsubsection{Client Certificate Selection}
+
+\subsubsection{Receiving a Certificate Message}
+
+If the server supplies an empty Certificate message, the client MUST
+   abort the handshake with a decode\_error alert.\\
+
+All endpoints are transitioned to SHA-256 to maintain interoperability
+with implementations currently in the process of phasing out SHA-1 support.
+
+\subsubsection{struct CertificateRequest}
+A server which is authenticating with a certificate will
+   request a certificate from the client.  This message, if sent, MUST
+   follow EncryptedExtensions.
+
+   \begin{center}
+       \includegraphics[width=0.75\columnwidth]{media/CertRequest.png}
+\end{center}
+
+
+\subsubsection{struct CertificateVerify}
+This message is used to provide explicit proof that an endpoint
+   possesses the private key corresponding to its certificate.  The
+   CertificateVerify message also provides integrity for the handshake
+   up to this point.  Servers MUST send this message when authenticating
+   via a certificate.  Clients MUST send this message whenever
+   authenticating via a certificate.  When sent, this message MUST appear immediately after
+   the Certificate message and immediately prior to the Finished
+   message.
+
+\begin{center}
+       \includegraphics[width=0.6\columnwidth]{media/CertVerify.png}
+\end{center}
+
+The algorithm field specifies the signature algorithm used.  The signature is a
+   digital signature using that algorithm.
+
 
 \end{document}
