@@ -5,6 +5,7 @@
 \usepackage{verbatim}
 \usepackage{hyperref}
 \usepackage{fontawesome}
+\usepackage{xstring}
 
 \definecolor{codebackground}{rgb}{0.95,0.95,0.95}
 \newcommand{\code}[1]{\tcbox[
@@ -20,6 +21,8 @@
     urlcolor=blue
 }
 \urlstyle{same}
+% \linkpy{shared/port} -> \href{file:shared/port.py}{shared.port}
+\newcommand{\linkpy}[1]{\href{file:#1.py}{\StrSubstitute{#1}{/}{.}}}
 
 \title{CSCI4230 Project Documentation}
 \author{Aidan McHugh, Kai Orita, and Bradley Presier}
@@ -29,7 +32,8 @@
 \begin{titlepage}
     \maketitle
     \begin{center}
-        \href{https://github.com/2kai2kai2/CSCI4230-project}{GitHub \faGithub}
+        \href{https://github.com/2kai2kai2/CSCI4230-project}{GitHub \faGithub} \\
+        \vspace*{30em}Note: If links do not work, try opening this file from its directory using Edge or Chrome.
     \end{center}
 \end{titlepage}
 
@@ -138,7 +142,7 @@ Specifically, Python is primarily used while an included Python package is imple
 Throughout this project, we have tried to be thorough in
 In the following, we will describe the different components:
 \subsubsection{Client/Server}
-The client (\code{client.py}) and server (\code{server.py} and \code{database.py}) exist in the main directory of this project.
+The client (\code{\href{file:client.py}{client.py}}) and server (\code{\href{file:server.py}{server.py}} and \code{\href{file:database.py}{database.py}}) exist in the main directory of this project.
 These are the main entrypoints for this project, and neither party should have access to the internal memory of the other process.
 \subsubsection{Shared Libraries}
 These libraries are contained in \code{./shared/} and are used by both the server and client (but do not share data between the two).
@@ -146,7 +150,24 @@ The libraries in this directory are implemented in Python.
 \subsubsection{C++ library}
 This Python module is implemented using C++ in \code{./lib/} and will be built by \code{pip} when installing dependencies.
 
-\section{SSL Implementation}
+\subsection{Order of Operations}
+The operation of this system can be categorized into three primary phases, in addition to the establishment of the TCP connection.
+\begin{enumerate}
+    \item (TCP Layer) TCP connection established \\
+          Client: Connection via \code{\href{https://docs.python.org/3/library/socket.html}{socket{\tiny\faExternalLink}}} \\
+          Server: Connection via \code{\href{https://docs.python.org/3/library/socketserver.html}{socketserver{\tiny\faExternalLink}}} using \code{\linkpy{server}.Handler}
+    \item (TLS Layer) TLS/SSL handshake establishes \code{\href{file:shared/rpi_ssl.py}{shared.rpi\_ssl}.Session} \\ % For some reason this line breaks if I use \linkpy
+          Client: Buffer control given to \code{\linkpy{shared/handshake\_handler}.client\_handle\_handshake} \\
+          Server: Buffer control given to \code{\linkpy{shared/handshake\_handler}.server\_handle\_handshake}
+    \item (App Layer) Authenticate user to associate \code{\linkpy{database}.Account} with session \\
+          Client: Get \code{\linkpy{shared/card}.Card} information from user \\
+          Server: Verify information in \code{\linkpy{database}}
+    \item (App Layer) Accept routine ATM commands \\
+          Client: Get command details and send request to server \\
+          Server: Respond to command as appropriate
+\end{enumerate}
+
+\section{TLS/SSL Implementation} % ================ TLS/SSL LEVEL ================
 At this level, we attempt to implement a simplified version of TLS 1.3.
 In this, we attempt to implement cryptographic algorithms in a manner that is usage-independent and reusable.
 
@@ -156,33 +177,33 @@ This is contained in the C++ library.
 This differs from TLS 1.3 in that CBC-mode is not permitted by TLS 1.3, but is otherwise compliant.
 
 \subsection{Hash Functions}
-We implement SHA-1, SHA-256, and SHA-384 in \code{./shared/rpi\_hash.py}.
+We implement SHA-1, SHA-256, and SHA-384 in \code{\linkpy{shared/rpi\_hash}}.
 However, in keeping with TLS 1.3 and best practices, SHA-1 is not considered a valid option for any purpose.
 
 \subsection{Message Authentication Codes (MACs)}
-We implement HMAC in \code{./shared/rpi\_hash.py}.
+We implement HMAC in \code{\linkpy{shared/rpi\_hash}}.
 
 \subsection{Digital Signatures}
-We implement only RSASSA-PSS (Signature Scheme with Appendix; Probabilistic Signature Scheme) in \code{./shared/rsassa\_pss.py} as specified in RFC 8017.
+We implement only RSASSA-PSS (Signature Scheme with Appendix; Probabilistic Signature Scheme) in \code{\linkpy{shared/rsassa\_pss}} as specified in RFC 8017.
 This is a preferred digital signature scheme by TLS 1.3 and produces a nondeterministic signature that can be used to verify the original message using the RSA public key.
 Our implementation can apply any hash function, but we use SHA-256 and SHA-384 in keeping with TLS 1.3 and best practices.
 Both \code{rsa\_pss\_rsae} and \code{rsa\_pss\_pss} modes as defined by TLS 1.3 use this algorithm,
 \textbf{TODO: DO WE SUPPORT BOTH OR JUST ONE?}
 
 \subsection{TLS Records}
-Each message in a TLS/SSL session is contained within a \href{https://en.wikipedia.org/wiki/Transport_Layer_Security#TLS_record}{TLS record}.
-Functions to encode and decode these, along with a \code{Session} class containing negotiated TLS/SSL session information are implemented in \code{./shared/rpi\_ssl.py}.
-A \code{Session} will only exist after the handshake is completed, and thus the Alert and Application record implementations are included within it.
+Each message in a TLS/SSL session is contained within a \href{https://en.wikipedia.org/wiki/Transport_Layer_Security#TLS_record}{TLS record{\tiny\faExternalLink}}.
+Functions to encode and decode these, along with a \code{Session} class containing negotiated TLS/SSL session information are implemented in \code{\linkpy{shared/rpi\_ssl}}.
+A \code{Session} will only exist after the handshake is completed, and thus the encrypted Alert and Application record implementations are included within it.
 The \code{Session} can automatically manage encryption, decryption, and verification/creation of MAC.
 Essentially, it provides an interface for the Application-level.
 
 \subsection{TLS/SSL Error Handling}
 Should a TLS/SSL-related error occur on this level, an \code{SSLError} will the thrown, which should be reported to the other party
 via a corresponding TLS Alert record.
-We consider most or all of these errors to be fatal.
+As specified by TLS 1.3, error alerts (all alerts except \code{close\_notify} and \code{user\_canceled}) must be considered fatal.
 
 \section{Application-Level Protocol} % ================ APPLICATION LEVEL ================
-This is also partially described in \code{./shared/protocol.py}.
+This is also partially described in \code{\linkpy{shared/protocol}}.
 All messages at the application level should be in the body of an SSL/TLS application record.
 This means that application level messages are encrypted and authenticated between the client and server (but not necessarily the user).
 Note messages sent follow the format of a client request, followed by a server response.
@@ -190,7 +211,7 @@ The server should never spontaneously send a message.
 
 \subsection{Application Message Format}
 Each application-level message starts with a single header byte describing what application message type it contains.
-These types are defined by the enum \code{MsgType} in \code{./shared/protocol.py}.
+These types are defined by the enum \code{\linkpy{shared/protocol}.MsgType}.
 The rest of the message contains further details:
 \subsubsection{\texttt{ACCOUNT\_AUTH} message type}
 This message type is used when authenticating the user.
@@ -266,7 +287,7 @@ With a valid ATM client, the corresponding amount of cash will be provided if su
 \label{sec:ApplicationError}
 This message type represents a serious error with a request at the application level.
 It should only be sent by the server as a response to a client request.
-Error codes are defined by the enum \code{AppError} in \code{./shared/protocol.py}.
+Error codes are defined by the enum \code{AppError} in \code{\linkpy{shared/protocol}}.
 See \hyperref[sec:ApplicationErrorCodes]{the next section$_\downarrow$} for error type details. \\
 \textbf{Response Format} \\
 \begin{tabular}{llll}
@@ -300,7 +321,7 @@ For more details, see \hyperref[sec:CardLoginAttemptLimit]{below$_\downarrow$}
 
 
 \subsection{Credit/Debit Cards}
-Implementation for card formats and related details is in \code{./shared/card.py}.
+Implementation for card formats and related details is in \code{\linkpy{shared/card}}.
 The \code{Card} class represents the fixed-length fields of a standard credit or debit card: \\
 \\
 \begin{tabular}{rl}
@@ -316,8 +337,8 @@ These can be serialized to and from 12 bytes for transmission. \\
 Additionally, a \code{Card::generateRandom()} method is provided which will generate a random valid card, optionally with some set fields.
 
 \subsection{Database}
-Implementation for the database is in \code{./database.py}. This relies heavily on the above \code{Card} implementation.
-Primarily, the database is made up of \code{Account} objects, which store information associated with the account, including the card, balance, and accountholder's name.
+Implementation for the \code{\linkpy{database}} relies heavily on the above \code{\linkpy{shared.card}.Card} implementation.
+Primarily, the database is made up of \code{\linkpy{database}.Account} objects, which store information associated with the account, including the card, balance, and accountholder's name.
 Note that the name is not used for verification. \\
 The database implemented here is intended to represent an abstraction of a real database, but does not fully implement the features of a typical database.
 For example, restarting the server will cause a database reset, as all data is stored exclusively in memory. \\
