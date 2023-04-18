@@ -384,13 +384,6 @@ In 'client.py' change the first non-import line 'conn = ... ' to the desired URL
 \end{center}
 
 \newpage
-\section{File Structure Overview}
-
-\begin{center}
-    \includegraphics[width=0.7\columnwidth]{media/filetree.png}
-\end{center}
-
-\newpage
 \subsection{Root Directory}
 \subsubsection{\code{client.py}}
 Main Run time file for the program on client side.
@@ -717,46 +710,20 @@ at that point is, of course, being sent to an unauthenticated peer.
 \subsection{Handshake Structures}
 Messages are stored as a struct that is flattened and reassembled on the other side of the connection. Structs are represented as Python Classes.
 \subsubsection{struct ClientHello}
-When a client first connects to a server, it is REQUIRED to send the
-ClientHello as its first TLS message.  The client will also send a
-ClientHello when the server has responded to its ClientHello with a
-HelloRetryRequest.
-
+When a client first connects to a server, it is REQUIRED to send the ClientHello as its first TLS message.
 Because TLS 1.3 forbids renegotiation, if a server has negotiated
 TLS 1.3 and receives a ClientHello at any other time, it MUST
-terminate the connection with an unexpected\_message alert.
+terminate the connection with an \code{unexpected\_message} alert.
+After sending the ClientHello message, the client waits for a ServerHello message.
 
-If a server established a TLS connection with a previous version of
-TLS and receives a TLS 1.3 ClientHello in a renegotiation, it MUST
-retain the previous protocol version.  In particular, it MUST NOT
-negotiate TLS 1.3.
-
-Structure of this message:
-\begin{center}
-    \includegraphics[width=1.1\columnwidth]{media/ClientHello.png}
-\end{center}
-
-
-After sending the ClientHello message, the client waits for a
-ServerHello or HelloRetryRequest message.  If early data is in use,
-the client may transmit early Application Data while
-waiting for the next handshake message.
-
+See \href{https://datatracker.ietf.org/doc/html/rfc8446#section-4.1.2}{RFC 8446 section 4.1.2\tiny\faExternalLink} for struct details.
 
 \subsubsection{struct ServerHello}
 The server will send this message in response to a ClientHello
 message to proceed with the handshake if it is able to negotiate an
 acceptable set of handshake parameters based on the ClientHello.
-\begin{center}
-    \includegraphics[width=1.1\columnwidth]{media/ServerHello.png}
-\end{center}
 
-\subsubsection{struct Hello Retry Request}
-The server will send this message in response to a ClientHello
-message if it is able to find an acceptable set of parameters but the
-ClientHello does not contain sufficient information to proceed with the handshake.
-The HelloRetryRequest has the same format as a ServerHello message,
-so it is hard coded in the implementation.
+See \href{https://datatracker.ietf.org/doc/html/rfc8446#section-4.1.3}{RFC 8446 section 4.1.3\tiny\faExternalLink} for struct details.
 
 \subsubsection{struct Extensions}
 A number of TLS messages contain tag-length-value encoded extensions structures.
@@ -780,13 +747,10 @@ It is essential for providing authentication of the handshake and of the compute
 Recipients of Finished messages MUST verify that the contents are
 correct and if incorrect MUST terminate the connection with a \code{decrypt\_error} alert.
 
-Once a side has sent its Finished message and has received and
-validated the Finished message from its peer, it may begin to send
-and receive Application Data over the connection.
+Once a side has sent its Finished message and has received and validated the Finished message from its peer,
+it may begin to send and receive Application Data over the connection.
 
-\begin{center}
-    \includegraphics[width=1.1\columnwidth]{media/Finshed.png}
-\end{center}
+See \href{https://datatracker.ietf.org/doc/html/rfc8446#section-4.4.4}{RFC 8446 section 4.4.4\tiny\faExternalLink} for struct details.
 
 \subsection{Transcript Hash}
 Many of the cryptographic computations in TLS make use of a
@@ -803,25 +767,12 @@ RSASSA-PSS is considered to be more secure than the older RSA-PKCS\#1 v1.5 signa
 as it provides protection against certain types of attacks such as chosen-message attacks and key-recovery attacks.
 See above for details on included cryptographic primitives.
 
-\subsubsection{Signature Generation Operation}
-\begin{center}
-    \includegraphics[width=1.1\columnwidth]{media/RSASSA-SIGN.png}
-\end{center}
-
-
-\subsubsection{Signature Verification Operation}
-\begin{center}
-    \includegraphics[width=1.1\columnwidth]{media/RSASSA-VERIFY.png}
-\end{center}
-
-
 \subsection{Certificates}
 %\subsubsection{Server Certificate Selection}
 
 %\subsubsection{Client Certificate Selection}
 
 \subsubsection{Receiving a Certificate Message}
-
 If the server supplies an empty Certificate message, the client MUST abort the handshake with a decode\_error alert.
 While we implement SHA-1, we only permit SHA-256 or SHA-384.
 
@@ -829,22 +780,16 @@ While we implement SHA-1, we only permit SHA-256 or SHA-384.
 A server which is authenticating with a certificate will request a certificate from the client.
 This message, if sent, MUST follow EncryptedExtensions.
 
-\begin{center}
-    \includegraphics[width=0.75\columnwidth]{media/CertRequest.png}
-\end{center}
+See \href{https://datatracker.ietf.org/doc/html/rfc8446#section-4.3.2}{RFC 8446 section 4.3.2\tiny\faExternalLink} for struct details.
 
 
 \subsubsection{struct CertificateVerify}
 This message is used to provide explicit proof that an endpoint possesses the private key corresponding to its certificate.
 The CertificateVerify message also provides integrity for the handshake up to this point.
-Servers MUST send this message when authenticating via a certificate.
-Clients MUST send this message whenever authenticating via a certificate.
+We authenticate via certificate, so both the server and client must send this message.
 When sent, this message MUST appear immediately after the Certificate message and immediately prior to the Finished message.
-\begin{center}
-    \includegraphics[width=0.6\columnwidth]{media/CertVerify.png}
-\end{center}
-The algorithm field specifies the signature algorithm used.
-The signature is adigital signature using that algorithm.
+
+See \href{https://datatracker.ietf.org/doc/html/rfc8446#section-4.4.3}{RFC 8446 section 4.4.3\tiny\faExternalLink} for struct details.
 
 
 \end{document}
