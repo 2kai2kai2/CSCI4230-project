@@ -62,6 +62,7 @@ To install dependencies,
 \begin{enumerate}
     \item (optional) Create a virtual environment of your choice.
     \item In this directory, run \code{pip install -r requirements.txt}
+    \item Use \code{generate\_keys.py} as specified \hyperref[sec:certificategen]{below$_\downarrow$} to generate certificates.
 \end{enumerate}
 
 \subsection{Run Application}
@@ -69,6 +70,34 @@ To install dependencies,
     \item Run \code{python server.py} to start the server.
     \item Run \code{python client.py} to start a client instance.
 \end{enumerate}
+
+\subsection{Provided Server Instance}
+For the convenience of the testing and accessibility, an Ubuntu Server Node running \code{server.py} is provided.
+\begin{center}
+    \begin{tabular}{r|l}
+        URL  & \textbf{bank.b-rad.solutions} \\
+        Port & \textbf{8000}                 \\
+    \end{tabular}
+\end{center}
+The server's firewall will block all traffic except TCP traffic on the application port.
+
+\subsection{Configuring Server Address}
+In \code{\linkpy{client.py}}, change the first non-import line
+\begin{center}
+    \code{conn = socket.create\_connection(("localhost", PORT))}
+\end{center}
+to include the desired URL or IP address instead of \code{localhost}.
+Then ensure that the value in \code{\linkpy{shared/port}} is correct.
+
+\subsection{Usage of Secrets}
+\label{sec:certificategen}
+We've elected not to include the private certificates we've generated for use with this assignment.
+However, in exchange, we've included a tool that can be used to generate keys of your own.
+By running the \code{\linkpy{generate\_keys}} script, four new files will be added to the \code{my\_secrets} directory.
+Note that they will override the `\texttt{public}' files already there, so back those up first.
+These secret RSA keys are used for mutual authentication of the client and server.
+To demonstrate a full break of our system, you might attack the public server without knowing
+the bank's server certificate secrets, nor the ATM's client certificate secrets. Best of luck!
 
 \subsection{Provided Accounts}
 \label{sec:ProvidedAccounts}
@@ -142,7 +171,6 @@ We have provided several accounts in the database that team blackhat might use o
 \subsection{Structure Overview}
 This project is implemented using Python 3 and C++.
 Specifically, Python is primarily used while an included Python package is implemented using C++. \\
-Throughout this project, we have tried to be thorough in
 In the following, we will describe the different components:
 \subsubsection{Client/Server}
 The client (\code{\href{file:client.py}{client.py}}) and server (\code{\href{file:server.py}{server.py}} and \code{\href{file:database.py}{database.py}}) exist in the main directory of this project.
@@ -171,11 +199,12 @@ The operation of this system can be categorized into three primary phases, in ad
 \end{enumerate}
 
 \section{TLS/SSL Implementation} % ================ TLS/SSL LEVEL ================
+\label{sec:tlssslfirst}
 At this level, we attempt to implement a simplified version of TLS 1.3.
 In this, we attempt to implement cryptographic algorithms in a manner that is usage-independent and reusable.
 
 \subsection{Symmetric Encryption}
-We implement only AES-256 with Cipher Block Chaining.
+We implement only \href{https://en.wikipedia.org/wiki/Advanced_Encryption_Standard}{AES-256\tiny\faExternalLink} with Cipher Block Chaining.
 This is contained in the C++ library.
 This differs from TLS 1.3 in that CBC-mode is not permitted by TLS 1.3, but is otherwise compliant.
 
@@ -187,11 +216,11 @@ However, in keeping with TLS 1.3 and best practices, SHA-1 is not considered a v
 We implement HMAC in \code{\linkpy{shared/rpi\_hash}}.
 
 \subsection{Digital Signatures}
-We implement only RSASSA-PSS (Signature Scheme with Appendix; Probabilistic Signature Scheme) in \code{\linkpy{shared/rsassa\_pss}} as specified in RFC 8017.
+\label{sec:Crypto-RSASSA-PSS}
+We implement only RSASSA-PSS (Signature Scheme with Appendix; Probabilistic Signature Scheme) in \code{\linkpy{shared/rsassa\_pss}} as specified in \href{https://datatracker.ietf.org/doc/html/rfc8017}{RFC 8017\tiny\faExternalLink}.
 This is a preferred digital signature scheme by TLS 1.3 and produces a nondeterministic signature that can be used to verify the original message using the RSA public key.
 Our implementation can apply any hash function, but we use SHA-256 and SHA-384 in keeping with TLS 1.3 and best practices.
-Both \code{rsa\_pss\_rsae} and \code{rsa\_pss\_pss} modes as defined by TLS 1.3 use this algorithm,
-\textbf{TODO: DO WE SUPPORT BOTH OR JUST ONE?}
+Both \code{rsa\_pss\_rsae\_*} and \code{rsa\_pss\_pss\_*} modes as defined by TLS 1.3 use this algorithm.
 
 \subsection{TLS Records}
 Each message in a TLS/SSL session is contained within a \href{https://en.wikipedia.org/wiki/Transport_Layer_Security#TLS_record}{TLS record{\tiny\faExternalLink}}.
@@ -201,7 +230,7 @@ The \code{Session} can automatically manage encryption, decryption, and verifica
 Essentially, it provides an interface for the Application-level.
 
 \subsection{TLS/SSL Error Handling}
-Should a TLS/SSL-related error occur on this level, an \code{SSLError} will the thrown, which should be reported to the other party
+Should a TLS/SSL-related error occur on this level, an \code{\linkpy{shared/rpi\_ssl}.SSLError} will the thrown, which should be reported to the other party
 via a corresponding TLS Alert record.
 As specified by TLS 1.3, error alerts (all alerts except \code{close\_notify} and \code{user\_canceled}) must be considered fatal.
 
@@ -237,6 +266,7 @@ or, if attempts have been exceeded, the response is a fatal \code{ATTEMPTS\_EXCE
 \hyperref[sec:ApplicationError]{error message$_\downarrow$} (this can be considered unsuccessful).
 
 \subsubsection{\texttt{BALANCE} message type}
+\label{sec:app_BALANCE}
 This message type should only be used after the user is authenticated.
 It requests the current account balance of the user from the server. \\
 \textbf{Request Format} \\
@@ -252,6 +282,7 @@ It requests the current account balance of the user from the server. \\
 \end{tabular}
 
 \subsubsection{\texttt{DEPOSIT} message type}
+\label{sec:app_DEPOSIT}
 This message type should only be used after the user is authenticated.
 It requests that an amount be added to the user's balance.
 With a valid ATM client, the corresponding amount of cash will have been inserted.
@@ -270,6 +301,7 @@ While \code{DEPOSIT} returns its success status in a similar manner to \code{WIT
 \end{tabular}
 
 \subsubsection{\texttt{WITHDRAW} message type}
+\label{sec:app_WITHDRAW}
 This message type should only be used after the user is authenticated.
 It requests that an amount be deducted from the user's balance.
 With a valid ATM client, the corresponding amount of cash will be provided if successful. \\
@@ -303,6 +335,7 @@ See \hyperref[sec:ApplicationErrorCodes]{the next section$_\downarrow$} for erro
 \label{sec:ApplicationErrorCodes}
 Application error codes may be sent by the server in an \code{ERROR}-type application message in response to client requests.
 They should not occur or be sent in any other situation.
+Note that as application-layer messages, these are fully encrypted.
 If a valid response exists for the request's own message type (for example insufficient funds for \code{WITHDRAW}), then that will be used instead.
 
 \subsubsection{\texttt{INVALID\_STAGE} (\texttt{0x00})}
@@ -324,6 +357,7 @@ For more details, see \hyperref[sec:CardLoginAttemptLimit]{below$_\downarrow$}
 
 
 \subsection{Credit/Debit Cards}
+\label{sec:Card}
 Implementation for card formats and related details is in \code{\linkpy{shared/card}}.
 The \code{Card} class represents the fixed-length fields of a standard credit or debit card: \\
 \\
@@ -340,6 +374,7 @@ These can be serialized to and from 12 bytes for transmission. \\
 Additionally, a \code{Card::generateRandom()} method is provided which will generate a random valid card, optionally with some set fields.
 
 \subsection{Database}
+\label{sec:Database}
 Implementation for the \code{\linkpy{database}} relies heavily on the above \code{\linkpy{shared.card}.Card} implementation.
 Primarily, the database is made up of \code{\linkpy{database}.Account} objects, which store information associated with the account, including the card, balance, and accountholder's name.
 Note that the name is not used for verification. \\
@@ -347,14 +382,14 @@ The database implemented here is intended to represent an abstraction of a real 
 For example, restarting the server will cause a database reset, as all data is stored exclusively in memory. \\
 \\
 The database exposes the \code{get\_account()} function to the server (and only the server),
-and the server is permitted to modify a returned \code{Account}'s balance.
+and the server is permitted to modify a returned \code{Account}'s balance using the \code{deposit} and \code{withdraw} methods.
 The client and user may not access the database except through the server.
 
 \subsubsection{Login Attempt Limit}
 \label{sec:CardLoginAttemptLimit}
 The database implements a limit on recent attempts to login with any card number.
 If 5 or more failed attempts have occurred in the past 30 minutes (including any attempts that failed because of this),
-the database will throw an \code{AttemptsExceededError} that should be caught by the caller and transmitted to the client. \\
+the database will throw a \code{\linkpy{database}.AttemptsExceededError} that should be caught by the caller and transmitted to the client. \\
 Note that to prevent this being used as a method to find other users' card numbers, login attempts for
 unused card numbers will have similar behavior in this regard as login attempts providing invalid verification details.
 So just as five attempts with a correct card number but incorrect PIN will cause further attempts with this card number to error,
@@ -366,65 +401,37 @@ Many of these randomize their card fields.
 See \hyperref[sec:ProvidedAccounts]{above$^\uparrow$} for the known account details.
 
 \newpage
-\section{Provided Server Instance}
-For the convenience of the testing and accessibility, a Ubuntu Server Node running 'Server.py is provided.
-\begin{center}
-    \begin{tabular}{r|l}
-        URL  & \textbf{bank.b-rad.solutions} \\
-        Port & \textbf{8000}                 \\
-    \end{tabular}
-\end{center}
-The servers Firewall Will block all traffic accept TCP traffic on application port.
-
-\subsection{Configuring Server Address}
-In 'client.py' change the first non-import line 'conn = ... ' to the desired URL or IP address as the first arg. Ensure that 'shared/port.py' is correct
-
-\begin{center}
-    \code{conn = socket.create\_connection(("localhost", PORT))}
-\end{center}
-
-\newpage
 \subsection{Root Directory}
-\subsubsection{\code{client.py}}
-Main Run time file for the program on client side.
+\subsubsection{\texttt{client.py}}
+Main entrypoint for the program on client side.
 \begin{enumerate}
     \item \code{fetch\_record()}
           Fetches a TLS/SSL record from the socket buffer.
-    \item \code{input\_card\_legacy()}
-          CLI interface for the client to input card details. Does not require ANSI terminal codes or get-key.
     \item \code{input\_card()}
-          CLI interface for the client to input card details.
-    \item \code{select\_mode\_legacy()}
-          CLI interface for the client to select mode of operation. Does not require ANSI terminal codes or get-key.
+          Creates a CLI interface for the client to input card details.
+    \item \code{input\_card\_legacy()}
+          Creates a CLI interface for the client to input card details.
+          Does not require ANSI terminal codes or get-key.
     \item \code{select\_mode()}
-          CLI interface for the client to select mode of operation
+          Creates a CLI interface for the client to select mode of operation.
+    \item \code{select\_mode\_legacy()}
+          Creates a CLI interface for the client to select mode of operation.
+          Does not require ANSI terminal codes or get-key.
     \item \code{request\_balance()}
-          This will retrieve the user's account balance from the bank's servers database and return it to the user.
+          Sends a request to the server for the account balance and awaits the response.
+          See \hyperref[sec:app_BALANCE]{above$_\uparrow$} for request message protocol details.
     \item \code{request\_deposit()}
-          This will send a request to the servers database for a deposit.
+          Sends a request to the server to deposit an amount and awaits the response.
+          See \hyperref[sec:app_DEPOSIT]{above$_\uparrow$} for request message protocol details.
     \item \code{request\_withdraw()}
-          This will send a request to the servers database for a withdraw.
-
-          or invalid account information. It may also update the transaction history for the user's account to reflect the withdrawal.
+          Sends a request to the server to withdraw an amount and awaits the response.
+          See \hyperref[sec:app_WITHDRAW]{above$_\uparrow$} for request message protocol details.
 \end{enumerate}
 
 \subsubsection{\texttt{database.py}}
-Family of functions to interact with the data of the bank on the server side.
-\begin{enumerate}
-    \item \code{balance()}
-          This will retrieve the user's account balance and return it to the user.
-    \item \code{deposit()}
-          This will add the deposit amount to the user's account balance and update the account balance accordingly.
-          The function would then return a message indicating the successful deposit and the updated account balance, or an error message if the deposit could not be completed.
-    \item \code{withdraw()}
-          This will check if the user has sufficient funds in their account to cover the withdrawal amount.
-          If the user has enough funds, the function would subtract the withdrawal amount from the user's account balance and update the account balance accordingly.
-          The function would then return a message indicating the successful withdrawal and the updated account balance, or an error message if the withdrawal could not be completed due to insufficient funds.
-    \item \code{\_add\_account()}
-          the function is called with the account number, CCV number, and Exp. Date. If the operation is successful, the function returns a success flag and a message indicating that the account was added to the database. If there is an error, the function returns a failure flag and an appropriate error message
-    \item \code{get\_account()}
-          Retrieves info on a user account.
-\end{enumerate}
+Family of functions and variables to interact with the data of the bank on the server side.
+
+For more details, see \hyperref[sec:Database]{above$^\uparrow$}.
 
 \subsubsection{\texttt{generate\_keys.py}}
 SSH (Secure Shell) key generation involves creating a public and private key pair that can be used for authentication and encryption in secure communication between two devices.
@@ -440,47 +447,61 @@ To install the dependencies listed in a requirements.txt file, run \code{pip ins
 This must be done before using this project.
 
 \subsubsection{\texttt{server.py}}
-Main Run time file for the program the Server side.
+Main entrypoint for the program on the server side.
+The primary object of this code is the \code{Handler} class which implements the Python
+\code{\href{https://docs.python.org/3/library/socketserver.html}{socketserver\.StreamRequestHandler}}:
 \begin{enumerate}
-    \item \code{fetch\_record()}
-    \item \code{handle\_handshake()}
-    \item \code{handle\_account\_auth()}
-    \item \code{handle\_routine()}
     \item \code{setup()}
-    \item \code{message\_handler()}
+          Called to initialize a \code{Handler} instance when a new TCP connection is established.
+    \item \code{fetch\_record()}:
+          Fetches a TLS/SSL record from the socket buffer.
     \item \code{handle()}
+          Called once for a \code{Handler} instance to handle its TCP connection.
+          This method is the primary driver for server-side functionality and calls all relevant methods in the correct order.
+    \item \code{message\_handler()}
+          Accepts a single TLS/SSL record (after TLS \code{Session} is established) and sends it to the relevant handler.
+    \item \code{handle\_account\_auth()}
+          Handles a single user authrorization request. Called by \code{message\_handler()}.
+    \item \code{handle\_routine()}
+          Handles a single routine request (e.g. BALANCE). Called by \code{message\_handler()}.
     \item \code{finish()}
+          Called to clean up a \code{Handler} instance when the TCP connection ends.
 \end{enumerate}
 
 \newpage
 \subsection{\texttt{lib} Directory}
-PyBind is a C++ library that reduces the boilerplate for expose C++ functions and classes to Python.
+PyBind11 is a C++ library that reduces the boilerplate for exposing C++ functions and classes to Python.
 We use it here to bind our AES implementation written in C++ to Python.
 
 \subsubsection{\texttt{aes.h}}
 This file contains is the primary implementation of AES-256 symmetric cipher functionality.
-It excludes all bindings for Python, which are included in \code{cpplib.cpp}.
+It does not include any bindings for Python, which are included in \code{cpplib.cpp}.
+Instead, this is a purely C++ implementation that may be reused in non-Python contexts.
 
 \subsubsection{\texttt{aes\_constants.h}}
 This file contains constants used by AES. \\
 \textbf{Round Constants}
 \code{\_rcon}: This is a table of round constants used in the key schedule of the AES algorithm.
 These are ten round constants, but AES-256 uses seven. \\
-
 \textbf{S-box Constants} \\
 \code{\_sbox}: This is a substitution table used in the byte substitution step of the AES algorithm. \\
 \code{\_inv\_sbox}: This is the inverse of the S-box and is used in the decryption process of the AES algorithm. \\
-We provide the functions \code{BYTE sbox(BYTE input)} and \code{BYTE inv\_sbox(BYTE input)} which provide type conversion functionality. \\
+We provide the functions \code{BYTE sbox(BYTE input)} and \code{BYTE inv\_sbox(BYTE input)} which
+provide type conversion functionality and should be used instead of directly accessing the arrays. \\
 \textbf{Galois Multiplication Tables} \\
 AES operates over $GF(2^8)$ modulo the irreducible polynomial $x^8 + x^4 + x^3 + x + 1$. \\
 However, AES only has a limited number of constants by which values are multiplied (decimal representation $2$, $3$, $9$, $11$, $13$, $14$).
 Thus, we use efficient lookup tables rather than implementing Galois Field multiplication.
 These lookup tables are used by the \texttt{mixColumns} step. \\
-We provide the \code{BYTE GF\_m(BYTE input, unsigned char c)} function which references the correct table \code{c} and multiples by \code{input}.
+We provide the \code{BYTE GF\_m(BYTE input, unsigned char c)} function which references
+the correct table \code{c} and multiples by \code{input}.
+This function should be used intead of directly accessing the arrays.
+
 \subsubsection{cpplib.cpp}
 This file contains the C++ side for creating bindings to Python.
+
 \subsubsection{setup.py}
-This file contains boilerplate on the Python side for bindings
+This file contains boilerplate on the Python side for bindings.
 
 \newpage
 \subsection{\texttt{my\_secrets} Directory}
@@ -491,15 +512,13 @@ The directory must be located in a specific location on the file system.
 
 \newpage
 \subsection{\texttt{shared} Directory}
-A directory called "shared" that stores helper functions for both a client and a server is a folder on a computer system that contains files with code that can be used by both the client and the server.
-These files might include common utility functions, configuration files, or other shared resources that are used by both the client and server applications.
-The directory may be organized in a specific way, such as by function or module, to make it easy for developers to find the resources they need.
-The shared directory must be located in a specific location on the file system, such as in the root directory of the application, or in a dedicated directory for shared resources.
-The directory may also be subject to appropriate access controls, to ensure that only authorized users or processes can access the files within it.
-The purpose of the shared directory is to promote code reuse and to make it easier to maintain both the client and server applications by avoiding duplicating code that is common to both.
+This directory contains functionality used by both the client and server.
+These files include common utility functions, configuration files, and other shared resources.
+The purpose of the shared directory is to promote code reuse and to make it easier to maintain both
+the client and server applications by avoiding duplicating code that is common to both.
 
 \subsubsection{\texttt{card.py}}
-This file contains implementation for the credit/debit \code{Card} class. See above for details.
+This file contains implementation for the credit/debit \code{Card} class. See \hyperref[sec:Card]{above$^\uparrow$} for details.
 
 \subsubsection{\texttt{handshake\_handler.py}} This Python file contains a class or function that handles handshakes between two entities or systems.
 Handshakes are a series of communications that establish a connection or exchange information.
@@ -510,7 +529,8 @@ Handshakes are a series of communications that establish a connection or exchang
     \item \code{client\_handle\_handshake()}
 \end{enumerate}
 
-\subsubsection{\texttt{keygen.py}} This Python file contains a function or class that generates cryptographic keys used to encrypt and decrypt data, which is essential for secure communication and data storage.
+\subsubsection{\texttt{keygen.py}}
+This Python file contains a function or class that generates cryptographic keys used to encrypt and decrypt data, which is essential for secure communication and data storage.
 Diffie-Hellman is a cryptographic algorithm used to establish a shared secret between two parties over an insecure communication channel.
 It was invented by Whitfield Diffie and Martin Hellman in 1976 and is widely used today in various protocols such as TLS, SSH, and VPNs.
 The main idea behind the Diffie-Hellman algorithm is to use the properties of modular arithmetic to enable two parties to agree on a shared secret without actually exchanging it directly over the insecure channel.
@@ -531,7 +551,8 @@ The algorithm involves the following steps:
 
 One of the main advantages of the Diffie-Hellman algorithm is that it provides perfect forward secrecy, which means that even if an attacker were to obtain the private keys of Alice or Bob at some later time, they would not be able to decrypt past communications because the shared secret was never transmitted over the insecure channel
 
-\subsubsection{\texttt{paillier.py}} This Python file contains a class or function that implements the Paillier cryptosystem, a public-key cryptosystem used for secure data encryption.
+\subsubsection{\texttt{paillier.py}}
+This Python file implements the Paillier cryptosystem, a public-key cryptosystem used for secure data encryption.
 Paillier is a public-key cryptosystem invented by Pascal Paillier in 1999.
 It is based on the computational difficulty of the decisional composite residuosity assumption (DCRA) problem, which is closely related to the RSA problem.
 The Paillier cryptosystem is considered a partially homomorphic encryption scheme, which means that it supports both additive and multiplicative homomorphic operations on ciphertexts.
@@ -541,36 +562,25 @@ One of the unique features of the Paillier cryptosystem is its homomorphic prope
 Specifically, the system supports both additive and multiplicative homomorphic operations, meaning that ciphertexts can be added together or multiplied together and the resulting ciphertext will decrypt to the sum or product of the original plaintexts.
 
 \begin{enumerate}
-    \item \textbf{genkeys()} The Paillier cryptosystem uses a public key and a private key, which are generated as follows:
-
-          Public Key Generation:
-          \begin{enumerate}
-              \item Choose two large prime numbers p and q, such that p and q are of equal length in bits and are kept secret.
-                    Compute the product of the two primes, n = p*q, which is used as the modulus for both the public and private keys.
-              \item Compute the Carmichael's totient function of n, $\lambda(n) = lcm(p-1, q-1)$, which is used to compute the private key.
-              \item Choose a random integer g that is relatively prime to n\^2. This is the generator of the cyclic group of integers modulo n.
-              \item Compute the public key (n, g), which is made public.
-          \end{enumerate}
-          Private Key Generation:
-          \begin{enumerate}
-              \item Choose a random integer L, such that L is relatively prime to $\lambda(n)$.
-              \item Compute the private key $\mu = L^{(-1)} $mod$ \lambda(n)$, where $L^{(-1)}$ is the modular multiplicative inverse of L modulo $\lambda(n)$.
-          \end{enumerate}
-          Once the public and private keys are generated, they can be used for encryption and decryption operations.
-          It is important to note that the security of the Paillier cryptosystem relies on the fact that it is difficult to compute the discrete logarithm of g modulo n\^2, and the decisional composite residuosity assumption is true for n.
-
-    \item  \textbf{encrypt()}
-    \item  \textbf{decrypt()}
-
-    \item  \textbf{summation()}
-          Adds all the chpiertext in list together
+    \item \code{primality\_test}: Checks with high probability if a number is prime.
+    \item \code{keygen()}: Generates a valid set of keys for the Paillier cryptosystem. May be slow.
+    \item \code{encrypt()}: Encrypts a message using the Paillier cryptosystem.
+    \item \code{decrypt()}: Decrypts a message using the Paillier cryptosystem.
+    \item \code{homomorphic\_add()} Adds two ciphertexts.
+    \item \code{homomorphic\_summation()} Adds a list of ciphertexts.
+    \item \code{homomorphic\_product()} Produces a ciphertext that decrypts to the product of a ciphertext and a plaintext.
 \end{enumerate}
 
-\subsubsection{\texttt{port.py}} This Python file contains a class that manages network ports, which are used to establish connections between two entities or systems over a network.
+\subsubsection{\texttt{port.py}}
+This Python file contains a single variable that defines the TCP port used
+for establishing connections between the client and server.
 
-\subsubsection{\texttt{protocol.py}} This Python file contains a class or function that implements a communication protocol, a set of rules and standards that govern how data is exchanged between two entities or systems.
+\subsubsection{\texttt{protocol.py}}
+This Python file contains enums for determining the application-layer messaging protocol.
+While it includes some detail on message format, more detail is provided above.
 
-\subsubsection{\texttt{rpi\_hash.py}} This Python file contains a class or function that implements a hashing algorithm, used to convert data into a fixed-length string of characters.
+\subsubsection{\texttt{rpi\_hash.py}}
+This Python file implements hashing algorithms, used to convert data into a fixed-length string of characters.
 \begin{enumerate}
     \item \code{SHA1()}:
           SHA-1 (Secure Hash Algorithm 1) is a cryptographic hash function that was developed by the United States National Security Agency (NSA) and published as a federal standard in 1995. SHA-1 generates a fixed-sized output of 160 bits, which is typically represented as a 40-digit hexadecimal number.
@@ -608,10 +618,15 @@ Specifically, the system supports both additive and multiplicative homomorphic o
 
 
 \subsubsection{\texttt{rpi\_ssl.py}}
-This Python file contains a class or function that implements the SSL (Secure Sockets Layer) protocol used to establish secure connections between two entities or systems over a network.
+This Python file implements part of the SSL (Secure Sockets Layer) protocol
+used to establish secure connections between two entities or systems over a network.
+Specifically, it implements the TLS/SSL \code{Session} used after the handshake.
+
+For more details, see \hyperref[sec:tlssslfirst]{above$^\uparrow$}.
 
 \subsubsection{\texttt{rsassa\_pss.py}}
-This Python file contains a class or function that implements the RSASSA-PSS digital signature algorithm, used to create and verify digital signatures.
+This Python file implements the RSASSA-PSS digital signature algorithm, used to create and verify digital signatures.
+
 Implemented as specified in \href{https://datatracker.ietf.org/doc/html/rfc8017}{RFC 8017}.
 \begin{center}
     \begin{enumerate}
@@ -623,13 +638,15 @@ Implemented as specified in \href{https://datatracker.ietf.org/doc/html/rfc8017}
     \end{enumerate}
 \end{center}
 
+See \hyperref[sec:Crypto-RSASSA-PSS]{above$^\uparrow$} for more details on RSASSA-PSS and why we selected it.
+
 \subsubsection{\texttt{tls\_handshake.py}}
-This Python file contains a class or function that implements the TLS (Transport Layer Security) protocol handshake process, used to establish secure connections between two entities or systems over a network.
+This Python file implements the TLS (Transport Layer Security) protocol handshake process, used to establish secure connections between two entities or systems over a network.
 
 \newpage
-\section{The Transport Layer Security (TLS) Protocol Version 1.3}
-This project is adapted from TLS 1.3 spec, RFC 8446.
-This section will overview the protocol and any changes to implmentation makes to it.
+\section{The Transport Layer Security (TLS) Protocol Version 1.3 Handshake}
+This project is adapted from TLS 1.3 spec, \href{https://datatracker.ietf.org/doc/html/rfc8446}{RFC 8446\tiny\faExternalLink}.
+This section will overview the handshake protocol and changes to implmentation makes to it.
 Some direct quotations are used.
 
 \subsection{Handshake Protocol Overview}
@@ -763,7 +780,7 @@ including record layer headers.  I.e., This is done with SHA256\\
 RSASSA-PSS (RSA Signature Scheme with Appendix - Probabilistic Signature Scheme) is a digital signature scheme that combines the RSA algorithm with probabilistic methods for added security.
 RSASSA-PSS is considered to be more secure than the older RSA-PKCS\#1 v1.5 signature scheme,
 as it provides protection against certain types of attacks such as chosen-message attacks and key-recovery attacks.
-See above for details on included cryptographic primitives.
+See \hyperref[sec:Crypto-RSASSA-PSS]{above$^\uparrow$} for details on included cryptographic primitives.
 
 \subsection{Certificates}
 %\subsubsection{Server Certificate Selection}
